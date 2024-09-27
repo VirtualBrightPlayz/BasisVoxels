@@ -105,16 +105,8 @@ public class BasisDemoVoxels : VoxelWorld
 
     public int GetSurfaceLevel(int x, int z)
     {
-        for (int i = Chunk.SIZE * renderDistance; i >= 0; i--)
-        {
-            Voxel vox = GetVoxel(x, i, z);
-            if (vox != null)
-            {
-                if (vox.IsActive)
-                    return i;
-            }
-        }
-        return 0;
+        float height = GetHeight(x, z);
+        return Mathf.FloorToInt(height) + 1;
     }
 
     public void PlaceDecorAt(int x, int y, int z)
@@ -140,7 +132,7 @@ public class BasisDemoVoxels : VoxelWorld
                     Vector3 jitterOffset = new Vector3(Mathf.Sin(gridPos.x ^ gridPos.z), 0f, Mathf.Cos(gridPos.x * gridPos.z)) * div;
                     int decorX = slicePos.x + Mathf.RoundToInt(jitterOffset.x);
                     int decorZ = slicePos.z + Mathf.RoundToInt(jitterOffset.z);
-                    PlaceDecorAt(decorX, GetSurfaceLevel(decorX, decorZ) + 1, decorZ);
+                    PlaceDecorAt(decorX, GetSurfaceLevel(decorX, decorZ), decorZ);
                 }
             }
         }
@@ -155,37 +147,25 @@ public class BasisDemoVoxels : VoxelWorld
                 Vector3Int slicePos = chunk.chunkPosition * Chunk.SIZE + new Vector3Int(x, 0, z);
                 float height = GetHeight(slicePos.x, slicePos.z);
                 int biome = GetBiome(slicePos.x, slicePos.z);
-                int surfaceY = -1;
                 for (int y = 0; y < Chunk.SIZE; y++)
                 {
                     Vector3Int worldPos = chunk.chunkPosition * Chunk.SIZE + new Vector3Int(x, y, z);
                     Voxel vox = chunk.GetVoxel(x, y, z);
                     if (vox != null)
                     {
-                        if (worldPos.y < 3)
+                        if (worldPos.y < 3 && worldPos.y < height)
                         {
                             vox.Id = floorBlockId;
                         }
                         else if (worldPos.y < height)
                         {
                             vox.Id = (byte)biome;
-                            surfaceY = y;
                         }
                         else
                         {
                             vox.Id = 0;
                         }
                     }
-                }
-
-                int div = 4;
-                if (slicePos.x % div == 0 && slicePos.z % div == 0 && surfaceY != -1 && surfaceY < Chunk.SIZE - 1)
-                {
-                    Vector3Int gridPos = slicePos / div;
-                    Vector3 jitterOffset = new Vector3(Mathf.Sin(gridPos.x ^ gridPos.z), 0f, Mathf.Cos(gridPos.x * gridPos.z)) * div;
-                    int decorX = slicePos.x + Mathf.RoundToInt(jitterOffset.x);
-                    int decorZ = slicePos.z + Mathf.RoundToInt(jitterOffset.z);
-                    // PlaceDecorAt(decorX, GetSurfaceLevel(decorX, decorZ) + 1, decorZ);
                 }
             }
         }
