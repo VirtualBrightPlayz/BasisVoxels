@@ -1,0 +1,20 @@
+{
+    "name": "VoxelsBasisDemo",
+    "rootNamespace": "",
+    "references": [
+        "GUID:1968f104170f3e069a0762f8d9b20384",
+        "GUID:8c9aa0e006f5b5347af5c5470971dfae",
+        "GUID:b4ae365a73764ee478adc74cb89832fe",
+        "GUID:a2bda89a3179a5324b88c0a9d3224e44",
+        "GUID:75469ad4d38634e559750d17036d5f7c"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
