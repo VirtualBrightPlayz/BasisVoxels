@@ -156,6 +156,7 @@ MonoBehaviour:
   - {fileID: 2100000, guid: eb742ae9f24497543b911db2030a10e3, type: 2}
   prefab: {fileID: 427715546}
   seed: 1337
+  OwnerId: 0
   IsOwner: 0
   interactDistance: 5
   minMaterial: 1

@@ -20,6 +20,7 @@ public class BasisDemoVoxels : VoxelWorld
     public const ushort SeedMessageId = 5134;
     public const ushort VoxelMessageId = 5135;
     public const ushort ChunkMessageId = 5136;
+    public const string OwnershipID = "VoxelWorld";
 
     public struct NetSeedMsg
     {
@@ -39,6 +40,7 @@ public class BasisDemoVoxels : VoxelWorld
     }
 
     private BasisNetworkedPlayer LocalNetworkPlayer;
+    public ushort OwnerId = 0;
     public bool IsOwner = false;
 
     public float interactDistance = 5f;
@@ -173,7 +175,7 @@ public class BasisDemoVoxels : VoxelWorld
 
     public override float GetHeight(int x, int z)
     {
-        return ((heightNoise.GetNoise(x, z) * 0.5f + 0.5f) + (heightNoise2.GetNoise(x, z) * 0.5f + 0.5f)) * Chunk.SIZE;
+        return ((heightNoise.GetNoise(x, z) * 0.5f + 0.5f) * 1f + (heightNoise2.GetNoise(x, z) * 0.5f + 0.5f) * 2f) * Chunk.SIZE * renderDistance / 2f;
     }
 
     public override int GetBiome(int x, int z)
@@ -181,23 +183,27 @@ public class BasisDemoVoxels : VoxelWorld
         return Mathf.FloorToInt((biomeNoise.GetNoise(x, z) * 0.5f + 0.5f) * (maxMaterial - minMaterial + 1) + minMaterial);
     }
 
+    private void Awake()
+    {
+        InitNetworking();
+    }
+
     private void Start()
     {
         seed = UnityEngine.Random.Range(0, int.MaxValue);
         decorContents.Clear();
         decorContents.AddRange(decor.Select(x => x.text));
-        InitNetworking();
         if (BasisLocalPlayer.Instance == null)
         {
             BasisLocalPlayer.OnLocalPlayerCreatedAndReady += InitLocalPlayer;
         }
         else
             InitLocalPlayer();
+        // GenerateMap(true);
     }
 
     private void InitLocalPlayer()
     {
-        BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE, Quaternion.identity);
         BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate += OnPostSimulate;
         BasisDeviceManagement.Instance.AllInputDevices.OnListChanged += FindTrackerRoles;
         // BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved += ResetIfNeeded; // TODO
@@ -208,17 +214,23 @@ public class BasisDemoVoxels : VoxelWorld
     private async void GenerateMap(bool actually)
     {
         heightNoise = new FastNoiseLite(seed);
-        heightNoise.SetFrequency(0.01f);
+        heightNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
+        heightNoise.SetFrequency(0.005f);
+
         heightNoise2 = new FastNoiseLite(seed);
-        heightNoise2.SetFrequency(0.01f);
+        heightNoise2.SetFrequency(0.005f);
         heightNoise2.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
+
         biomeNoise = new FastNoiseLite(seed);
         biomeNoise.SetFrequency(0.005f);
         biomeNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
+
         rng = new System.Random(seed);
         if (actually)
+        {
             await TryGenChunk(Vector3Int.zero);
-        BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE, Quaternion.identity);
+        }
+        BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * renderDistance, Quaternion.identity);
     }
 
     private void OnDestroy()
@@ -264,10 +276,7 @@ public class BasisDemoVoxels : VoxelWorld
         BasisNetworkManagement.OnLocalPlayerJoined += OnLocalJoin;
         BasisNetworkManagement.OnRemotePlayerJoined += OnRemoteJoin;
         BasisNetworkManagement.OnRemotePlayerLeft += OnRemoteLeft;
-        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
-        {
-            // GenerateMap(true);
-        }
+        BasisNetworkManagement.OnOwnershipTransfer += OnOwnerTransfer;
     }
 
     private void DeInitNetworking()
@@ -276,6 +285,7 @@ public class BasisDemoVoxels : VoxelWorld
         BasisNetworkManagement.OnLocalPlayerJoined -= OnLocalJoin;
         BasisNetworkManagement.OnRemotePlayerJoined -= OnRemoteJoin;
         BasisNetworkManagement.OnRemotePlayerLeft -= OnRemoteLeft;
+        BasisNetworkManagement.OnOwnershipTransfer -= OnOwnerTransfer;
     }
 
     public void ComputeCurrentOwner()
@@ -284,34 +294,47 @@ public class BasisDemoVoxels : VoxelWorld
         IsOwner = OldestPlayerInInstance == LocalNetworkPlayer.NetId;
     }
 
-    private async void OnLocalJoin(BasisNetworkedPlayer player1, BasisLocalPlayer player2)
+    private void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner)
+    {
+        if (UniqueEntityID == OwnershipID)
+        {
+            bool wasOwner = this.IsOwner;
+            OwnerId = NetIdNewOwner;
+            this.IsOwner = IsOwner;
+            if (IsOwner && !wasOwner)
+            {
+                GenerateMap(true);
+                SendSeed();
+                foreach (var pos in chunks.Keys)
+                {
+                    SendChunk(pos);
+                }
+            }
+        }
+    }
+
+    private void OnLocalJoin(BasisNetworkedPlayer player1, BasisLocalPlayer player2)
     {
         LocalNetworkPlayer = player1;
-        await Task.Delay(1000);
-        ComputeCurrentOwner();
-        if (IsOwner)
-        {
-            GenerateMap(true);
-            SendSeed();
-        }
+        BasisNetworkManagement.RequestCurrentOwnership(OwnershipID);
     }
 
     private void OnRemoteJoin(BasisNetworkedPlayer player1, BasisRemotePlayer player2)
     {
-        ComputeCurrentOwner();
         if (IsOwner)
         {
-            SendSeed();
+            ushort[] targets = new ushort[] { player1.NetId };
             foreach (var pos in chunks.Keys)
             {
-                SendChunk(pos, new ushort[] { player1.NetId });
+                SendChunk(pos, targets);
             }
+            SendSeed(targets);
         }
     }
 
     private void OnRemoteLeft(BasisNetworkedPlayer player1, BasisRemotePlayer player2)
     {
-        ComputeCurrentOwner();
+        BasisNetworkManagement.RequestCurrentOwnership(OwnershipID);
     }
 
     private void OnSceneMessage(ushort PlayerID, ushort MessageIndex, byte[] buffer, ushort[] Recipients)
@@ -356,12 +379,12 @@ public class BasisDemoVoxels : VoxelWorld
         await mesh.UpdateMeshAsync();
     }
 
-    private void SendSeed()
+    private void SendSeed(ushort[] targets = null)
     {
         if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
             return;
         byte[] data = SerializationUtility.SerializeValue(new NetSeedMsg() { seed = seed }, DataFormat.Binary);
-        BasisScene.NetworkMessageSend(SeedMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered);
+        BasisScene.NetworkMessageSend(SeedMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered, targets);
     }
 
     private void SendVoxel(Vector3Int pos)
