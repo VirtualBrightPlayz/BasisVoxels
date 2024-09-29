@@ -21,6 +21,7 @@ public class VoxelMesh : MonoBehaviour
     private MeshRenderer meshRenderer;
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
+    private bool isUpdating = false;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ChunkVertex
@@ -161,6 +162,9 @@ public class VoxelMesh : MonoBehaviour
 
     public async Task UpdateMeshAsync()
     {
+        if (isUpdating)
+            return;
+        isUpdating = true;
         verts.Clear();
         trisLookup.Clear();
         uvs.Clear();
@@ -230,6 +234,7 @@ public class VoxelMesh : MonoBehaviour
                 i2++;
         }
         meshRenderer.sharedMaterials = tempList;
+        isUpdating = false;
         // return Task.CompletedTask;
     }
 
