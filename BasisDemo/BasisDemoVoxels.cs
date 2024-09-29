@@ -59,6 +59,7 @@ public class BasisDemoVoxels : VoxelWorld
     public FastNoiseLite heightNoise;
     public FastNoiseLite heightNoise2;
     public FastNoiseLite biomeNoise;
+    public bool hasMap = false;
 
     private BasisInput centerEye;
     private BasisInput leftHand;
@@ -199,7 +200,7 @@ public class BasisDemoVoxels : VoxelWorld
         }
         else
             InitLocalPlayer();
-        // GenerateMap(true);
+        // _ = GenerateMap(true);
     }
 
     private void InitLocalPlayer()
@@ -211,8 +212,9 @@ public class BasisDemoVoxels : VoxelWorld
         BasisLocalPlayer.OnLocalPlayerCreatedAndReady -= InitLocalPlayer;
     }
 
-    private async void GenerateMap(bool actually)
+    private async Task GenerateMap(bool actually)
     {
+        hasMap = true;
         heightNoise = new FastNoiseLite(seed);
         heightNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         heightNoise.SetFrequency(0.005f);
@@ -229,8 +231,8 @@ public class BasisDemoVoxels : VoxelWorld
         if (actually)
         {
             await TryGenChunk(Vector3Int.zero);
+            // BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * renderDistance, Quaternion.identity);
         }
-        BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * renderDistance, Quaternion.identity);
     }
 
     private void OnDestroy()
@@ -245,6 +247,13 @@ public class BasisDemoVoxels : VoxelWorld
     {
         TxtVoxelFile voxelFile = new TxtVoxelFile(htmlVoxelColors.ToArray());
         File.WriteAllText("world.txt", voxelFile.Write(Vector3Int.one * Chunk.SIZE * -renderDistance, Vector3Int.one * Chunk.SIZE * renderDistance, this));
+    }
+
+    [ContextMenu(nameof(TestCrash))]
+    public void TestCrash()
+    {
+        UpdateChunk(Vector3.zero);
+        UpdateChunk(Vector3.zero);
     }
 
 #region Networking
@@ -276,7 +285,7 @@ public class BasisDemoVoxels : VoxelWorld
         BasisNetworkManagement.OnLocalPlayerJoined += OnLocalJoin;
         BasisNetworkManagement.OnRemotePlayerJoined += OnRemoteJoin;
         BasisNetworkManagement.OnRemotePlayerLeft += OnRemoteLeft;
-        BasisNetworkManagement.OnOwnershipTransfer += OnOwnerTransfer;
+        BasisNetworkManagement.OnOwnershipTransfer += OnOwnerTransferAsync;
     }
 
     private void DeInitNetworking()
@@ -285,7 +294,7 @@ public class BasisDemoVoxels : VoxelWorld
         BasisNetworkManagement.OnLocalPlayerJoined -= OnLocalJoin;
         BasisNetworkManagement.OnRemotePlayerJoined -= OnRemoteJoin;
         BasisNetworkManagement.OnRemotePlayerLeft -= OnRemoteLeft;
-        BasisNetworkManagement.OnOwnershipTransfer -= OnOwnerTransfer;
+        BasisNetworkManagement.OnOwnershipTransfer -= OnOwnerTransferAsync;
     }
 
     public void ComputeCurrentOwner()
@@ -294,7 +303,7 @@ public class BasisDemoVoxels : VoxelWorld
         IsOwner = OldestPlayerInInstance == LocalNetworkPlayer.NetId;
     }
 
-    private void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner)
+    private async void OnOwnerTransferAsync(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner)
     {
         if (UniqueEntityID == OwnershipID)
         {
@@ -303,11 +312,14 @@ public class BasisDemoVoxels : VoxelWorld
             this.IsOwner = IsOwner;
             if (IsOwner && !wasOwner)
             {
-                GenerateMap(true);
-                SendSeed();
-                foreach (var pos in chunks.Keys)
+                if (!hasMap)
                 {
-                    SendChunk(pos);
+                    await GenerateMap(true);
+                    foreach (var pos in chunks.Keys)
+                    {
+                        SendChunk(pos);
+                    }
+                    SendSeed();
                 }
             }
         }
@@ -345,7 +357,7 @@ public class BasisDemoVoxels : VoxelWorld
             {
                 NetSeedMsg msg = SerializationUtility.DeserializeValue<NetSeedMsg>(buffer, DataFormat.Binary);
                 seed = msg.seed;
-                GenerateMap(false);
+                _ = GenerateMap(false);
                 break;
             }
             case VoxelMessageId:
