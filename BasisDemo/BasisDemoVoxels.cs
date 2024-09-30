@@ -9,6 +9,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedPlayer;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public partial class BasisDemoVoxels : VoxelWorld
 {
@@ -18,6 +19,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public Transform highlighter;
     public GameObject breakBlockSound;
+    public GameObject inventoryPrefab;
 
     private Transform[] highlighters;
 
@@ -35,12 +37,6 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public bool genOnStart = false;
 
-    private BasisInput centerEye;
-    private BasisInput leftHand;
-    private BasisInput rightHand;
-    private bool lastTriggerLeftMouse = false;
-    private bool lastTriggerRightMouse = false;
-
     private void Awake()
     {
         materials.Clear();
@@ -52,6 +48,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     private void Start()
     {
+        inventoryAction.Enable();
         if (!genOnStart)
             seed = Random.Range(0, int.MaxValue);
         if (BasisLocalPlayer.Instance == null)
@@ -95,6 +92,16 @@ public partial class BasisDemoVoxels : VoxelWorld
     }
 
 #region Inputs
+
+    [Header("Inputs")]
+    public InputAction inventoryAction;
+
+    private BasisInput centerEye;
+    private BasisInput leftHand;
+    private BasisInput rightHand;
+    private bool lastTriggerLeftMouse = false;
+    private bool lastTriggerRightMouse = false;
+    private bool lastInventoryButton = false;
 
     private void FindTrackerRoles()
     {
@@ -159,6 +166,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 PlaceHighlighter(dir, highlighters[0]);
                 bool leftMouse = BasisLocalInputActions.Instance.LeftMousePressed.action.ReadValue<float>() >= 0.5f;
                 bool rightMouse = BasisLocalInputActions.Instance.RightMousePressed.action.ReadValue<float>() >= 0.5f;
+                bool inventoryBtn = inventoryAction.ReadValue<float>() >= 0.5f;
                 if (leftMouse && !lastTriggerLeftMouse)
                 {
                     TryDestroyBlock(dir);
@@ -167,8 +175,13 @@ public partial class BasisDemoVoxels : VoxelWorld
                 {
                     TryPlaceBlock(dir, placeBlockId);
                 }
+                if (inventoryBtn && !lastInventoryButton)
+                {
+                    ToggleInventoryUI();
+                }
                 lastTriggerLeftMouse = leftMouse;
                 lastTriggerRightMouse = rightMouse;
+                lastInventoryButton = inventoryBtn;
             }
         }
         else
@@ -204,6 +217,27 @@ public partial class BasisDemoVoxels : VoxelWorld
     }
 
 #endregion
+
+    public void ToggleInventoryUI()
+    {
+        if (InventoryUI.Instance != null)
+        {
+            InventoryUI.Instance.CloseThisMenu();
+        }
+        else
+        {
+            GameObject obj = Instantiate(inventoryPrefab);
+            if (obj.TryGetComponent(out InventoryUI inv))
+            {
+                inv.Open();
+                inv.FillBlocks(this);
+            }
+            else
+            {
+                Destroy(obj);
+            }
+        }
+    }
 
     public void PlaceHighlighter(Ray ray, Transform highlight)
     {

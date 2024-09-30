@@ -164,6 +164,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 65f02d65862dc5d4abf9ad7c29985f7c, type: 2}
   highlighter: {fileID: 1734611836}
   breakBlockSound: {fileID: 1864548406}
+  inventoryPrefab: {fileID: 5643756069970403715, guid: b45f27ff70173b0418cee60f14a8eeb1, type: 3}
   OwnerId: 0
   IsOwner: 0
   interactDistance: 5
@@ -182,7 +183,24 @@ MonoBehaviour:
   - cccccc
   - ff0000
   - ff9000
-  genOnStart: 0
+  genOnStart: 1
+  inventoryAction:
+    m_Name: Inventory
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: 755c2879-5506-413e-8802-a6804fd3872d
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: cdf00a83-f9da-4e59-a7de-751987e21695
+      m_Path: <Keyboard>/e
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Inventory
+      m_Flags: 0
+    m_Flags: 0
   structureAssets:
   - {fileID: 11400000, guid: c3eccb8584838fc41a8cb8298b4e8199, type: 2}
   - {fileID: 11400000, guid: 9060258aced46694784702d7de0b5fe2, type: 2}
