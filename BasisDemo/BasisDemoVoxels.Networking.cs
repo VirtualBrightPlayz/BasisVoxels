@@ -135,6 +135,7 @@ public partial class BasisDemoVoxels
                 if (vox != null)
                 {
                     vox.Id = msg.id;
+                    PlayBlockSoundAt(msg.pos);
                     UpdateChunks(msg.pos);
                 }
                 break;
