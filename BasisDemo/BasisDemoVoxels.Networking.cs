@@ -138,6 +138,8 @@ public partial class BasisDemoVoxels
                     PlayBlockSoundAt(msg.pos);
                     if (types[msg.id].lit)
                         vox.Emit = types[msg.id].litColor;
+                    else
+                        vox.Emit = new Color32(0, 0, 0, 0);
                     UpdateChunks(msg.pos);
                 }
                 break;
