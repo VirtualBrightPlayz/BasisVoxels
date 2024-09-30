@@ -31,12 +31,12 @@ public class DemoVoxelWorld : VoxelWorld
     {
     }
 
-    public override float GetHeight(int x, int z)
+    public float GetHeight(int x, int z)
     {
         return (heightNoise.GetNoise(x, z) * 0.5f + 0.5f) * (heightNoise2.GetNoise(x, z) * 0.5f + 0.5f);
     }
 
-    public override int GetBiome(int x, int z)
+    public int GetBiome(int x, int z)
     {
         return Mathf.FloorToInt((biomeNoise.GetNoise(x, z) * 0.5f + 0.5f) * (maxMaterial - minMaterial + 1) + minMaterial);
     }

@@ -132,6 +132,4 @@ public abstract class VoxelWorld : MonoBehaviour
     }
 
     public abstract void GenerateVoxels(Chunk chunk);
-    public abstract float GetHeight(int x, int z);
-    public abstract int GetBiome(int x, int z);
 }

@@ -156,27 +156,34 @@ MonoBehaviour:
   - {fileID: 2100000, guid: eb742ae9f24497543b911db2030a10e3, type: 2}
   prefab: {fileID: 427715546}
   seed: 1337
+  types:
+  - {fileID: 11400000, guid: a9b8fb0c932aa91439b6733db64cc462, type: 2}
+  - {fileID: 11400000, guid: a70623a320b28d14aae74e3be74df44b, type: 2}
+  - {fileID: 11400000, guid: 8e8cf609f477d4e418fb628446a486e8, type: 2}
+  - {fileID: 11400000, guid: 9aec3f301cb75804b8a170d1f8bb3bbb, type: 2}
+  - {fileID: 11400000, guid: 65f02d65862dc5d4abf9ad7c29985f7c, type: 2}
   OwnerId: 0
   IsOwner: 0
   interactDistance: 5
-  minMaterial: 1
-  maxMaterial: 1
   renderDistance: 5
   layers:
     serializedVersion: 2
     m_Bits: 1
   placeBlockId: 3
-  floorBlockId: 2
   htmlVoxelColors:
   - ffffff
   - 00ff00
   - cccccc
   - ff0000
   - ff9000
-  decor:
-  - {fileID: 4900000, guid: 6d852aa902733c449b2f0b857ba90113, type: 3}
-  - {fileID: 4900000, guid: 6e18818cf319e294f8d8c752e01a8df4, type: 3}
-  - {fileID: 4900000, guid: e41bca1419600144da5ffc4124f232ad, type: 3}
+  genOnStart: 1
+  structureAssets:
+  - {fileID: 11400000, guid: c3eccb8584838fc41a8cb8298b4e8199, type: 2}
+  - {fileID: 11400000, guid: 9060258aced46694784702d7de0b5fe2, type: 2}
+  minMaterial: 1
+  maxMaterial: 1
+  floorBlockId: 2
+  hasMap: 0
 --- !u!4 &63342781
 Transform:
   m_ObjectHideFlags: 0
