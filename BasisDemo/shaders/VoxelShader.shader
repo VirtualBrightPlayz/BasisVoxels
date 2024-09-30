@@ -3,6 +3,9 @@ Shader "VoxelShader"
     Properties
     {
         [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
+
+        [ToggleOff] _SpecularHighlights("Specular Highlights", Float) = 1.0
+        [ToggleOff] _EnvironmentReflections("Environment Reflections", Float) = 1.0
     }
 
     SubShader

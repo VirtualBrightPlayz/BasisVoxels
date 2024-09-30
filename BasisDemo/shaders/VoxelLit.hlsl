@@ -15,10 +15,10 @@ struct Attributes
 struct Varyings
 {
     float4 positionCS : SV_POSITION;
-    float3 positionWS : TEXCOORD0;
+    float4 positionWS : TEXCOORD0;
     float3 normalWS : TEXCOORD1;
     float3 viewDirWS : TEXCOORD2;
-    float2 uv : TEXCOORD3;
+    float3 uv0FogCoord : TEXCOORD3;
     float4 shadowCoords : TEXCOORD4;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -48,10 +48,16 @@ Varyings vert(Attributes IN)
     VertexPositionInputs positions = GetVertexPositionInputs(IN.positionOS.xyz);
     VertexNormalInputs normals = GetVertexNormalInputs(IN.normalOS);
 
-    OUT.positionWS = positions.positionWS.xyz;
+    OUT.positionWS = float4(positions.positionWS, 1);
     OUT.normalWS = normals.normalWS.xyz;
     OUT.positionCS = positions.positionCS;
-    OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
+    OUT.viewDirWS = GetWorldSpaceNormalizeViewDir(positions.positionWS);
+    OUT.uv0FogCoord.xy = TRANSFORM_TEX(IN.uv, _BaseMap);
+    #ifdef _FOG_FRAGMENT
+    OUT.uv0FogCoord.z = positions.positionVS.z;
+    #else
+    OUT.uv0FogCoord.z = ComputeFogFactor(positions.positionCS.z);
+    #endif
     OUT.shadowCoords = GetShadowCoord(positions);
     return OUT;
 }
@@ -69,13 +75,20 @@ void frag(
 
     InputData inputData;
     InitializeInputData(IN, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, UNDO_TRANSFORM_TEX(IN.uv, _BaseMap));
+    SETUP_DEBUG_TEXTURE_DATA(inputData, UNDO_TRANSFORM_TEX(IN.uv0FogCoord.xy, _BaseMap));
+
+    #ifdef _FOG_FRAGMENT
+    IN.uv0FogCoord.z = InitializeInputDataFog(IN.positionWS, IN.uv0FogCoord.z);
+    #endif
 
     Light light = GetMainLight(IN.shadowCoords);
-    float3 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv);
+    float3 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy).rgb;
     float3 ambient = SampleSH(IN.normalWS);
     float3 lighting = LightingLambert(light.color, light.direction, IN.normalWS) * light.shadowAttenuation;
-    float3 final = color * (lighting + ambient);
+    float3 finalColor = color * (lighting + ambient);
+    half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, -IN.viewDirWS));
+    half3 envColor = DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
+    float3 final = MixFogColor(finalColor, envColor, IN.uv0FogCoord.z);
     outColor = float4(final, 1);
 
 #ifdef _WRITE_RENDERING_LAYERS
