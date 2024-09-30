@@ -3,6 +3,8 @@ using UnityEngine;
 public class Voxel
 {
     public byte Id = 0;
+    public Color32 Emit = new Color32(0, 0, 0, 0);
+    public Color32 Light = new Color32(0, 0, 0, 0);
     public bool IsActive => Id != 0;
 }
 

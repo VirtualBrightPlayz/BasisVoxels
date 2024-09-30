@@ -33,6 +33,16 @@ public abstract class VoxelWorld : MonoBehaviour
         return GetVoxel(new Vector3(x, y, z));
     }
 
+    public Voxel GetVoxel(Chunk chunk, int x, int y, int z)
+    {
+        if (chunk != null)
+        {
+            Vector3Int voxelPos = new Vector3Int(x, y, z) + UnroundPosition(chunk.chunkPosition);
+            return GetVoxel(voxelPos.x, voxelPos.y, voxelPos.z);
+        }
+        return null;
+    }
+
     public Vector3Int GetVoxelPosition(Vector3 pos)
     {
         return new Vector3Int(Mathf.FloorToInt(pos.x), Mathf.FloorToInt(pos.y), Mathf.FloorToInt(pos.z));
@@ -74,16 +84,50 @@ public abstract class VoxelWorld : MonoBehaviour
         }
     }
 
-    public void UpdateChunks(Vector3 pos)
+    public async void UpdateChunks(Vector3 pos)
     {
         if (genRunning)
             return;
+        genRunning = true;
         Vector3Int chunkPos = FloorPosition(pos);
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
                 for (int z = -1; z <= 1; z++)
                     if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
                         chunk.UpdateMesh();
+        Queue<(Vector3Int, Color32)> lights = new Queue<(Vector3Int, Color32)>();
+        {
+            // int x = 0;
+            // int y = 0;
+            // int z = 0;
+            for (int x = -1; x <= 1; x++)
+                for (int y = -1; y <= 1; y++)
+                    for (int z = -1; z <= 1; z++)
+                        if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
+                        {
+                            for (int x2 = 0; x2 < Chunk.SIZE; x2++)
+                                for (int y2 = 0; y2 < Chunk.SIZE; y2++)
+                                    for (int z2 = 0; z2 < Chunk.SIZE; z2++)
+                                    {
+                                        Voxel vox = chunk.chunk.GetVoxel(x2, y2, z2);
+                                        vox.Light = new Color32(0, 0, 0, 0);
+                                        if (vox.Emit.a == 0)
+                                            continue;
+                                        lights.Enqueue((UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2), vox.Emit));
+                                    }
+                        }
+        }
+        while (lights.Count != 0)
+        {
+            (Vector3Int pos2, Color32 col) = lights.Dequeue();
+            await Task.Run(() => UpdateLightmap(pos2, col));
+        }
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                for (int z = -1; z <= 1; z++)
+                    if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
+                        chunk.UpdateMesh();
+        genRunning = false;
     }
 
     [Obsolete]
@@ -132,4 +176,47 @@ public abstract class VoxelWorld : MonoBehaviour
     }
 
     public abstract void GenerateVoxels(Chunk chunk);
+
+    #region Lighting
+
+    public void UpdateLightmap(Vector3Int voxPos, Color32 baseLight)
+    {
+        Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
+        queue.Enqueue((voxPos, baseLight));
+        List<Vector3Int> list = new List<Vector3Int>();
+        while (queue.Count != 0)
+        {
+            (Vector3Int pos, Color32 light) = queue.Dequeue();
+            if (list.Contains(pos) || light.a <= 1)
+                continue;
+            list.Add(pos);
+            Voxel vox = GetVoxel(pos);
+            if (vox == null)
+                continue;
+            if (vox.IsActive && pos != voxPos)
+                continue;
+            if (vox.Light.r > light.r || vox.Light.g > light.g || vox.Light.b > light.b)
+                continue;
+            vox.Light = light;
+            light.a--;
+            int amount = baseLight.a - light.a;
+            light.r = (byte)(baseLight.r / amount);
+            light.g = (byte)(baseLight.g / amount);
+            light.b = (byte)(baseLight.b / amount);
+            if (!list.Contains(pos + Vector3Int.up))
+                queue.Enqueue((pos + Vector3Int.up, light));
+            if (!list.Contains(pos + Vector3Int.down))
+                queue.Enqueue((pos + Vector3Int.down, light));
+            if (!list.Contains(pos + Vector3Int.left))
+                queue.Enqueue((pos + Vector3Int.left, light));
+            if (!list.Contains(pos + Vector3Int.right))
+                queue.Enqueue((pos + Vector3Int.right, light));
+            if (!list.Contains(pos + Vector3Int.forward))
+                queue.Enqueue((pos + Vector3Int.forward, light));
+            if (!list.Contains(pos + Vector3Int.back))
+                queue.Enqueue((pos + Vector3Int.back, light));
+        }
+    }
+
+    #endregion
 }

@@ -9,12 +9,14 @@ struct Attributes
     float4 positionOS : POSITION;
     float3 normalOS : NORMAL;
     float2 uv : TEXCOORD0;
+    half4 color : COLOR;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 struct Varyings
 {
     float4 positionCS : SV_POSITION;
+    half4 color : COLOR;
     float4 positionWS : TEXCOORD0;
     float3 normalWS : TEXCOORD1;
     float3 viewDirWS : TEXCOORD2;
@@ -59,6 +61,7 @@ Varyings vert(Attributes IN)
     OUT.uv0FogCoord.z = ComputeFogFactor(positions.positionCS.z);
     #endif
     OUT.shadowCoords = GetShadowCoord(positions);
+    OUT.color = IN.color;
     return OUT;
 }
 
@@ -85,7 +88,7 @@ void frag(
     float3 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy).rgb;
     float3 ambient = SampleSH(IN.normalWS);
     float3 lighting = LightingLambert(light.color, light.direction, IN.normalWS) * light.shadowAttenuation;
-    float3 finalColor = color * (lighting + ambient);
+    float3 finalColor = color * (lighting + ambient + IN.color.rgb);
     half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, -IN.viewDirWS));
     half3 envColor = DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
     float3 final = MixFogColor(finalColor, envColor, IN.uv0FogCoord.z);

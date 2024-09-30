@@ -15,6 +15,7 @@ public class VoxelMesh : MonoBehaviour
     private List<Vector3> verts = new List<Vector3>();
     private Dictionary<int, List<int>> trisLookup = new Dictionary<int, List<int>>();
     private List<Vector2> uvs = new List<Vector2>();
+    private List<Color32> colors = new List<Color32>();
     public Chunk chunk;
     public VoxelWorld world;
     private Mesh mesh;
@@ -29,25 +30,27 @@ public class VoxelMesh : MonoBehaviour
         public Vector3 position;
         public Vector3 normal;
         public Vector4 tangent;
+        public Color32 color;
         public Vector2 uv;
     }
 
     private void AddChunk()
     {
         bool[] visibleFaces = new bool[6];
+        Color32[] lightFaces = new Color32[6];
         for (int x = 0; x < Chunk.SIZE; x++)
         {
             for (int y = 0; y < Chunk.SIZE; y++)
             {
                 for (int z = 0; z < Chunk.SIZE; z++)
                 {
-                    AddVoxel(x, y, z, ref visibleFaces);
+                    AddVoxel(x, y, z, ref visibleFaces, ref lightFaces);
                 }
             }
         }
     }
 
-    private void AddVoxel(int x, int y, int z, ref bool[] visibleFaces)
+    private void AddVoxel(int x, int y, int z, ref bool[] visibleFaces, ref Color32[] lightFaces)
     {
         Voxel vox = chunk.GetVoxel(x, y, z);
         if (vox.IsActive)
@@ -59,20 +62,30 @@ public class VoxelMesh : MonoBehaviour
             visibleFaces[4] = world.IsFaceVisible(chunk, x, y, z + 1); // forward
             visibleFaces[5] = world.IsFaceVisible(chunk, x, y, z - 1); // back
 
-            for (int i = 0; i < visibleFaces.Length; i++)
+            Color32 unlit = new Color32(0, 0, 0, 0);
+            lightFaces[0] = world.GetVoxel(chunk, x, y + 1, z)?.Light ?? unlit;
+            lightFaces[1] = world.GetVoxel(chunk, x, y - 1, z)?.Light ?? unlit;
+            lightFaces[2] = world.GetVoxel(chunk, x - 1, y, z)?.Light ?? unlit;
+            lightFaces[3] = world.GetVoxel(chunk, x + 1, y, z)?.Light ?? unlit;
+            lightFaces[4] = world.GetVoxel(chunk, x, y, z + 1)?.Light ?? unlit;
+            lightFaces[5] = world.GetVoxel(chunk, x, y, z - 1)?.Light ?? unlit;
+
+            for (int i = 0; i < 6; i++)
             {
                 if (visibleFaces[i])
                 {
-                    AddFaceData(x, y, z, i, vox.Id);
+                    AddFaceData(x, y, z, i, vox, lightFaces[i]);
                 }
             }
         }
     }
 
-    private void AddFaceData(int x, int y, int z, int faceIndex, int id)
+    private void AddFaceData(int x, int y, int z, int faceIndex, Voxel vox, Color32 light)
     {
         switch (faceIndex)
         {
+            default:
+                return;
             case 0: // up
                 verts.Add(new Vector3(x, y + 1, z));
                 verts.Add(new Vector3(x, y + 1, z + 1));
@@ -134,7 +147,11 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(0, 1));
                 break;
         }
-        AddTriangles(id);
+        colors.Add(light);
+        colors.Add(light);
+        colors.Add(light);
+        colors.Add(light);
+        AddTriangles(vox.Id);
     }
 
     private void AddTriangles(int id)
@@ -168,6 +185,7 @@ public class VoxelMesh : MonoBehaviour
         verts.Clear();
         trisLookup.Clear();
         uvs.Clear();
+        colors.Clear();
         verts.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
         uvs.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
         await Task.Run(AddChunk);
@@ -180,6 +198,7 @@ public class VoxelMesh : MonoBehaviour
                 new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3),
                 new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3),
                 new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4),
+                new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4),
                 new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2)
             );
             int indCount = 0;
@@ -193,6 +212,7 @@ public class VoxelMesh : MonoBehaviour
                 {
                     position = verts[i],
                     uv = uvs[i],
+                    color = colors[i],
                 };
             }
             NativeArray<uint> index = data.GetIndexData<uint>();

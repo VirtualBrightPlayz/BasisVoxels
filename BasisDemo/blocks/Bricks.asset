@@ -14,3 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   material: {fileID: 2100000, guid: 2651db3304dd3ce40a9dfa2bc0f7ad9b, type: 2}
   htmlColor: ff0000
+  lit: 1
+  litColor:
+    serializedVersion: 2
+    rgba: 268435711
+  showInMenu: 1
