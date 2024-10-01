@@ -54,7 +54,7 @@ public partial class BasisDemoVoxels
         }
         foreach (var chunk in chunks.Values)
         {
-            chunk.UpdateMesh();
+            await chunk.UpdateMeshAsync();
         }
         genRunning = false;
     }
@@ -146,6 +146,7 @@ public partial class BasisDemoVoxels
 
     private async Task GenerateMap(bool actually)
     {
+        Debug.Log("Generating Map...");
         hasMap = true;
         heightNoise = new FastNoiseLite(seed);
         heightNoise.SetFractalType(FastNoiseLite.FractalType.FBm);

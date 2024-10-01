@@ -21,6 +21,9 @@ public partial class BasisDemoVoxels : VoxelWorld
     public GameObject breakBlockSound;
     public GameObject inventoryPrefab;
 
+    public Light blockLightPrefab;
+    public Light sun;
+
     private Transform[] highlighters;
 
     public ushort OwnerId = 0;
@@ -34,6 +37,8 @@ public partial class BasisDemoVoxels : VoxelWorld
     public byte placeBlockId = 1;
 
     public List<string> htmlVoxelColors = new List<string>();
+
+    public Dictionary<Vector3Int, Light> blockLights = new Dictionary<Vector3Int, Light>();
 
     public bool genOnStart = false;
 
@@ -58,7 +63,16 @@ public partial class BasisDemoVoxels : VoxelWorld
         else
             InitLocalPlayer();
         if (genOnStart)
+        {
+            IsOwner = true;
             _ = GenerateMap(true);
+        }
+    }
+
+    private void Update()
+    {
+        UpdateTasks();
+        UpdateTimeCycle();
     }
 
     private void InitLocalPlayer()
@@ -77,18 +91,41 @@ public partial class BasisDemoVoxels : VoxelWorld
         BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindTrackerRoles;
     }
 
+    public override void ProcessLight(Vector3Int pos)
+    {
+        Voxel vox = GetVoxel(pos);
+        if (vox != null)
+        {
+            if (blockLights.TryGetValue(pos, out Light light))
+            {
+                if (vox.Emit.a == 0)
+                {
+                    blockLights.Remove(pos);
+                    Destroy(light.gameObject);
+                    return;
+                }
+                Color color = vox.Emit;
+                color.a = 1f;
+                light.color = color;
+                light.range = vox.Emit.a;
+            }
+            else if (vox.Emit.a != 0)
+            {
+                light = Instantiate(blockLightPrefab, pos + Vector3.one * 0.5f, Quaternion.identity, transform);
+                blockLights.Add(pos, light);
+                Color color = vox.Emit;
+                color.a = 1f;
+                light.color = color;
+                light.range = vox.Emit.a;
+            }
+        }
+    }
+
     [ContextMenu(nameof(SaveWorld))]
     public void SaveWorld()
     {
         TxtVoxelFile voxelFile = new TxtVoxelFile(htmlVoxelColors.ToArray());
         File.WriteAllText("world.txt", voxelFile.Write(Vector3Int.one * Chunk.SIZE * -renderDistance, Vector3Int.one * Chunk.SIZE * renderDistance, this));
-    }
-
-    [ContextMenu(nameof(TestCrash))]
-    public void TestCrash()
-    {
-        UpdateChunk(Vector3.zero);
-        UpdateChunk(Vector3.zero);
     }
 
 #region Inputs
@@ -220,7 +257,19 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
-#endregion
+    #endregion
+
+    public override void SetVoxel(Vector3Int pos, byte id)
+    {
+        Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
+        if (vox == null)
+            return;
+        vox.Id = id;
+        if (types[id].lit)
+            vox.Emit = types[id].litColor;
+        else
+            vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
+    }
 
     public void ToggleInventoryUI()
     {
@@ -307,12 +356,11 @@ public partial class BasisDemoVoxels : VoxelWorld
             Vector3Int pos = GetVoxelPosition(block);
             if (vox != null)
             {
-                vox.Id = 0;
+                SetVoxel(pos, 0);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, 0);
-                vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
             }
-            UpdateChunks(block);
+            QueueUpdateChunks(FloorPosition(block));
         }
     }
 
@@ -327,15 +375,11 @@ public partial class BasisDemoVoxels : VoxelWorld
                 return;
             if (vox != null)
             {
-                vox.Id = id;
+                SetVoxel(pos, id);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, id);
-                if (types[id].lit)
-                    vox.Emit = types[id].litColor;
-                else
-                    vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
             }
-            UpdateChunks(block);
+            QueueUpdateChunks(FloorPosition(block));
         }
     }
 }

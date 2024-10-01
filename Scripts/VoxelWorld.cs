@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -10,6 +11,7 @@ public abstract class VoxelWorld : MonoBehaviour
     protected Dictionary<Vector3Int, VoxelMesh> chunks = new Dictionary<Vector3Int, VoxelMesh>();
     public int seed = 1337;
     protected bool genRunning = false;
+    protected Queue<Vector3Int> chunkUpdateQueue = new Queue<Vector3Int>();
 
     public static Vector3Int RoundPosition(Vector3 pos)
     {
@@ -70,42 +72,51 @@ public abstract class VoxelWorld : MonoBehaviour
         Voxel vox = GetVoxel(x, y, z);
         if (vox == null)
             return true;
-        return !GetVoxel(x, y, z).IsActive;
+        return !vox.IsActive;
     }
 
-    public void UpdateChunk(Vector3 pos)
+    public virtual void UpdateTasks()
     {
-        if (genRunning)
-            return;
-        Vector3Int chunkPos = FloorPosition(pos);
-        if (chunks.TryGetValue(chunkPos, out VoxelMesh chunk))
+        if (!genRunning && chunkUpdateQueue.TryDequeue(out Vector3Int chunkPos))
         {
-            chunk.UpdateMesh();
+            _ = UpdateChunks(chunkPos, true);
         }
     }
 
-    public async void UpdateChunks(Vector3 pos)
+    public void QueueUpdateChunks(Vector3Int chunkPos)
+    {
+        // if (chunks.TryGetValue(chunkPos, out VoxelMesh chunk))
+        //     chunk.UpdateMesh();
+        // if (chunkUpdateQueue.Count(x => x == chunkPos) > 1)
+        //     return;
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                for (int z = -1; z <= 1; z++)
+                    if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
+                        chunk.UpdateMesh();
+        chunkUpdateQueue.Enqueue(chunkPos);
+    }
+
+    public virtual void SetVoxel(Vector3Int pos, byte id)
+    {
+        Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
+        if (vox == null)
+            return;
+        vox.Id = id;
+    }
+
+    public virtual void ProcessLight(Vector3Int pos)
+    {
+    }
+
+    public async Task UpdateChunks(Vector3Int chunkPos, bool updateMeshes)
     {
         if (genRunning)
             return;
         genRunning = true;
-        Vector3Int chunkPos = FloorPosition(pos);
-        {
-            int x = 0;
-            int y = 0;
-            int z = 0;
-            // for (int x = -1; x <= 1; x++)
-            //     for (int y = -1; y <= 1; y++)
-            //         for (int z = -1; z <= 1; z++)
-                        if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                            await chunk.UpdateMeshAsync();
-        }
+        Queue<Vector3Int> subLights = new Queue<Vector3Int>();
         Queue<(Vector3Int, Color32)> lights = new Queue<(Vector3Int, Color32)>();
-        Queue<(Vector3Int, Color32)> subLights = new Queue<(Vector3Int, Color32)>();
         {
-            // int x = 0;
-            // int y = 0;
-            // int z = 0;
             for (int x = -1; x <= 1; x++)
                 for (int y = -1; y <= 1; y++)
                     for (int z = -1; z <= 1; z++)
@@ -121,7 +132,7 @@ public abstract class VoxelWorld : MonoBehaviour
                                             continue;
                                         if (vox.Emit.r == 0 && vox.Emit.g == 0 && vox.Emit.b == 0)
                                         {
-                                            // subLights.Enqueue((UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2), vox.Emit));
+                                            subLights.Enqueue(UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2));
                                             vox.Emit.a = 0;
                                         }
                                         else
@@ -131,34 +142,25 @@ public abstract class VoxelWorld : MonoBehaviour
         }
         while (subLights.Count != 0)
         {
-            (Vector3Int pos2, Color32 col) = subLights.Dequeue();
-            await Task.Run(() => UpdateLightmap(pos2, col));
+            Vector3Int pos2 = subLights.Dequeue();
+            ProcessLight(pos2);
         }
         while (lights.Count != 0)
         {
             (Vector3Int pos2, Color32 col) = lights.Dequeue();
+            ProcessLight(pos2);
+            // UpdateLightmap(pos2, col);
             await Task.Run(() => UpdateLightmap(pos2, col));
         }
-        for (int x = -1; x <= 1; x++)
-            for (int y = -1; y <= 1; y++)
-                for (int z = -1; z <= 1; z++)
-                    if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                        chunk.UpdateMesh();
-        genRunning = false;
-    }
-
-    [Obsolete]
-    public async Task GenChunk(Vector3Int pos)
-    {
-        if (!chunks.ContainsKey(pos))
+        if (updateMeshes)
         {
-            VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
-            chunk.world = this;
-            chunks.Add(pos, chunk);
-            chunk.gameObject.SetActive(true);
-            await chunk.Setup();
-            await chunk.Generate();
+            for (int x = -1; x <= 1; x++)
+                for (int y = -1; y <= 1; y++)
+                    for (int z = -1; z <= 1; z++)
+                        if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
+                            await chunk.UpdateMeshAsync();
         }
+        genRunning = false;
     }
 
     public async Task<VoxelMesh> SpawnOrGetChunk(Vector3Int pos)
@@ -171,9 +173,9 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
             chunk.world = this;
-            chunks.Add(pos, chunk);
             chunk.gameObject.SetActive(true);
             await chunk.Setup();
+            chunks.Add(pos, chunk);
             return chunk;
         }
     }
@@ -184,9 +186,9 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
             chunk.world = this;
-            chunks.Add(pos, chunk);
             chunk.gameObject.SetActive(true);
             await chunk.Setup();
+            chunks.Add(pos, chunk);
             return chunk;
         }
         return null;
@@ -198,13 +200,15 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public void UpdateLightmap(Vector3Int voxPos, Color32 baseLight)
     {
+        // if (baseLight.r == 0 && baseLight.g == 0 && baseLight.b == 0)
+        //     return;
         Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
         queue.Enqueue((voxPos, baseLight));
         List<Vector3Int> list = new List<Vector3Int>();
         while (queue.Count != 0)
         {
             (Vector3Int pos, Color32 light) = queue.Dequeue();
-            if (list.Contains(pos) || light.a <= 1)
+            if (list.Contains(pos) || light.a <= 0)
                 continue;
             list.Add(pos);
             Voxel vox = GetVoxel(pos);
@@ -212,15 +216,18 @@ public abstract class VoxelWorld : MonoBehaviour
                 continue;
             if (vox.IsActive && pos != voxPos)
                 continue;
-            if (vox.Light.a > light.a)
-                if (vox.Light.r > light.r || vox.Light.g > light.g || vox.Light.b > light.b)
-                    continue;
-            vox.Light = light;
+            // if (vox.Light.a > light.a)
+                // if (vox.Light.r > light.r || vox.Light.g > light.g || vox.Light.b > light.b)
+                    // continue;
+            float amount = (float)light.a / baseLight.a;
+            light.r = (byte)(baseLight.r * amount);
+            light.g = (byte)(baseLight.g * amount);
+            light.b = (byte)(baseLight.b * amount);
+            vox.Light.r = (byte)Mathf.Clamp(vox.Light.r + light.r, 0, 255);
+            vox.Light.g = (byte)Mathf.Clamp(vox.Light.g + light.g, 0, 255);
+            vox.Light.b = (byte)Mathf.Clamp(vox.Light.b + light.b, 0, 255);
+            vox.Light.a = light.a;
             light.a--;
-            int amount = baseLight.a - light.a;
-            light.r = (byte)(baseLight.r / amount);
-            light.g = (byte)(baseLight.g / amount);
-            light.b = (byte)(baseLight.b / amount);
             if (!list.Contains(pos + Vector3Int.up))
                 queue.Enqueue((pos + Vector3Int.up, light));
             if (!list.Contains(pos + Vector3Int.down))
@@ -236,8 +243,8 @@ public abstract class VoxelWorld : MonoBehaviour
         }
         if (baseLight.r == 0 && baseLight.g == 0 && baseLight.b == 0)
         {
-            Voxel vox = GetVoxel(voxPos);
-            vox.Emit = new Color32(0, 0, 0, 0);
+            // Voxel vox = GetVoxel(voxPos);
+            // vox.Emit = new Color32(0, 0, 0, 0);
         }
     }
 

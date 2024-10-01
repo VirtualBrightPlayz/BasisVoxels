@@ -23,7 +23,7 @@ RenderSettings:
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 2
+  m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
@@ -166,6 +166,8 @@ MonoBehaviour:
   highlighter: {fileID: 1734611836}
   breakBlockSound: {fileID: 1864548406}
   inventoryPrefab: {fileID: 5643756069970403715, guid: b45f27ff70173b0418cee60f14a8eeb1, type: 3}
+  blockLightPrefab: {fileID: 7866164613732841854, guid: e5df2aea8cc49d4468cf8f35e0e69c13, type: 3}
+  sun: {fileID: 414597580}
   OwnerId: 0
   IsOwner: 0
   interactDistance: 5
@@ -209,6 +211,7 @@ MonoBehaviour:
   maxMaterial: 1
   floorBlockId: 2
   hasMap: 0
+  timeSpeed: 0.8333333
 --- !u!4 &63342781
 Transform:
   m_ObjectHideFlags: 0
@@ -332,13 +335,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 414597579}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
+  m_LocalRotation: {x: 0, y: -0.258819, z: 0, w: 0.9659259}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -30, z: 0}
 --- !u!114 &414597582
 MonoBehaviour:
   m_ObjectHideFlags: 0

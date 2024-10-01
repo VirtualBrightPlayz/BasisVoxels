@@ -21,7 +21,7 @@ public class DemoVoxelWorld : VoxelWorld
         {
             for (int y = -renderDistance; y <= renderDistance; y++)
             {
-                await GenChunk(new Vector3Int(pos.x + x, 0, pos.z + y));
+                // await GenChunk(new Vector3Int(pos.x + x, 0, pos.z + y));
             }
         }
         genRunning = false;
