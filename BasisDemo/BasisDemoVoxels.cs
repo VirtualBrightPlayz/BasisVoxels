@@ -212,6 +212,10 @@ public partial class BasisDemoVoxels : VoxelWorld
                 {
                     TryPlaceBlock(dir, placeBlockId);
                 }
+                if (rightHand.InputState.SecondaryButtonGetState && !rightHand.LastState.SecondaryButtonGetState)
+                {
+                    ToggleInventoryUI();
+                }
             }
         }
     }
