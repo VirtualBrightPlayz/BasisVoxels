@@ -306,7 +306,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 vox.Id = 0;
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, 0);
-                vox.Emit = new Color32(0, 0, 0, 0);
+                vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
             }
             UpdateChunks(block);
         }
@@ -328,6 +328,8 @@ public partial class BasisDemoVoxels : VoxelWorld
                 SendVoxel(pos, id);
                 if (types[id].lit)
                     vox.Emit = types[id].litColor;
+                else
+                    vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
             }
             UpdateChunks(block);
         }

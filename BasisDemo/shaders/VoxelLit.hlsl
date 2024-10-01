@@ -91,7 +91,8 @@ void frag(
     float3 finalColor = color * (lighting + ambient + IN.color.rgb);
     half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, -IN.viewDirWS));
     half3 envColor = DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
-    float3 final = MixFogColor(finalColor, envColor, IN.uv0FogCoord.z);
+    float3 final = MixFog(finalColor, IN.uv0FogCoord.z);
+    // float3 final = MixFogColor(finalColor, envColor, IN.uv0FogCoord.z);
     outColor = float4(final, 1);
 
 #ifdef _WRITE_RENDERING_LAYERS

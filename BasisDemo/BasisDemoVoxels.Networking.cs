@@ -139,7 +139,7 @@ public partial class BasisDemoVoxels
                     if (types[msg.id].lit)
                         vox.Emit = types[msg.id].litColor;
                     else
-                        vox.Emit = new Color32(0, 0, 0, 0);
+                        vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
                     UpdateChunks(msg.pos);
                 }
                 break;

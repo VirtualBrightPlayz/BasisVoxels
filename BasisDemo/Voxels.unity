@@ -16,7 +16,7 @@ RenderSettings:
   serializedVersion: 10
   m_Fog: 1
   m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  m_FogMode: 1
+  m_FogMode: 2
   m_FogDensity: 0.01
   m_LinearFogStart: 25
   m_LinearFogEnd: 30
@@ -162,6 +162,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8e8cf609f477d4e418fb628446a486e8, type: 2}
   - {fileID: 11400000, guid: 9aec3f301cb75804b8a170d1f8bb3bbb, type: 2}
   - {fileID: 11400000, guid: 65f02d65862dc5d4abf9ad7c29985f7c, type: 2}
+  - {fileID: 11400000, guid: bb4aabb546a87024ebbabe46e93a131d, type: 2}
   highlighter: {fileID: 1734611836}
   breakBlockSound: {fileID: 1864548406}
   inventoryPrefab: {fileID: 5643756069970403715, guid: b45f27ff70173b0418cee60f14a8eeb1, type: 3}
