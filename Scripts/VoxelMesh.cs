@@ -19,9 +19,12 @@ public class VoxelMesh : MonoBehaviour
     public Chunk chunk;
     public VoxelWorld world;
     private Mesh mesh;
-    private MeshRenderer meshRenderer;
-    private MeshFilter meshFilter;
-    private MeshCollider meshCollider;
+    [HideInInspector]
+    public MeshRenderer meshRenderer;
+    [HideInInspector]
+    public MeshFilter meshFilter;
+    [HideInInspector]
+    public MeshCollider meshCollider;
     private bool isUpdating = false;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -179,7 +182,7 @@ public class VoxelMesh : MonoBehaviour
 
     public async Task UpdateMeshAsync()
     {
-        if (isUpdating || mesh == null || chunk == null || !meshRenderer.enabled)
+        if (isUpdating || mesh == null || chunk == null /*|| !meshRenderer.enabled*/)
             return;
         isUpdating = true;
         verts.Clear();
@@ -192,8 +195,8 @@ public class VoxelMesh : MonoBehaviour
         // AddChunk();
         Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
         Mesh.MeshData data = array[0];
-        await Task.Run(() =>
-        {
+        // await Task.Run(() =>
+        // {
             data.SetVertexBufferParams(verts.Count,
                 new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3),
                 new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3),
@@ -227,12 +230,12 @@ public class VoxelMesh : MonoBehaviour
                 }
                 data.SetSubMesh(k++, new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count));
             }
-        });
+        // });
         Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
         mesh.RecalculateBounds();
         mesh.RecalculateNormals();
         mesh.RecalculateTangents();
-        Physics.BakeMesh(mesh.GetInstanceID(), false, MeshColliderCookingOptions.UseFastMidphase);
+        Physics.BakeMesh(mesh.GetInstanceID(), false, MeshColliderCookingOptions.None);
         if (verts.Count == 0)
         {
             meshFilter.sharedMesh = null;

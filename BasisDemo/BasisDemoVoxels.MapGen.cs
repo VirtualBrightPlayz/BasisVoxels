@@ -59,6 +59,11 @@ public partial class BasisDemoVoxels
         {
             chunk.UpdateMesh();
         }
+        foreach (var chunk in chunks.Values)
+        {
+            // if (chunk.meshRenderer != null && chunk.meshRenderer.enabled)
+            //     chunk.UpdateMesh();
+        }
         genRunning = false;
     }
 
@@ -151,8 +156,9 @@ public partial class BasisDemoVoxels
 
     public async void UpdateMapGen()
     {
+        // TODO: multiplayer
         Camera cam = Camera.main;
-        if (cam == null)
+        if (cam == null || !IsOwner)
             return;
         Vector3Int pos = FloorPosition(cam.transform.position);
         if (lastPos != pos && !genRunning)

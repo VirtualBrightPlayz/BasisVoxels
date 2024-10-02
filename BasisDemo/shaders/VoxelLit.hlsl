@@ -88,7 +88,7 @@ void frag(
     float3 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy).rgb;
     float3 ambient = SampleSH(IN.normalWS);
     float3 lighting = LightingLambert(light.color, light.direction, IN.normalWS) * light.shadowAttenuation;
-    float3 finalColor = color * (lighting + ambient + IN.color.rgb * max(dot(float3(0, 1, 1), IN.normalWS), 0.75));
+    float3 finalColor = color * (lighting + ambient + IN.color.rgb);
     half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, -IN.viewDirWS));
     half3 envColor = DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
     float3 final = MixFog(finalColor, IN.uv0FogCoord.z);

@@ -208,6 +208,7 @@ MonoBehaviour:
   structureAssets:
   - {fileID: 11400000, guid: c3eccb8584838fc41a8cb8298b4e8199, type: 2}
   - {fileID: 11400000, guid: 9060258aced46694784702d7de0b5fe2, type: 2}
+  - {fileID: 11400000, guid: d0eace0de2844a843a84b37922e7db1e, type: 2}
   biomes:
   - {fileID: 11400000, guid: 7edcffabec2f6b945bae9298ef9c1a4d, type: 2}
   - {fileID: 11400000, guid: 8227efbf110ec934cb93c95c06316034, type: 2}
@@ -378,6 +379,7 @@ GameObject:
   m_Component:
   - component: {fileID: 427715547}
   - component: {fileID: 427715546}
+  - component: {fileID: 427715548}
   - component: {fileID: 427715545}
   - component: {fileID: 427715544}
   - component: {fileID: 427715543}
@@ -475,6 +477,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   world: {fileID: 0}
+  meshRenderer: {fileID: 0}
+  meshFilter: {fileID: 0}
+  meshCollider: {fileID: 0}
 --- !u!4 &427715547
 Transform:
   m_ObjectHideFlags: 0
@@ -490,6 +495,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &427715548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 427715542}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3483086b3dc92194a8c2a327b1d336b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  distance: 5
+  mesh: {fileID: 427715546}
 --- !u!1 &1613010383
 GameObject:
   m_ObjectHideFlags: 0
