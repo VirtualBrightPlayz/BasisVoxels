@@ -195,8 +195,8 @@ public class VoxelMesh : MonoBehaviour
         // AddChunk();
         Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
         Mesh.MeshData data = array[0];
-        // await Task.Run(() =>
-        // {
+        await Task.Run(() =>
+        {
             data.SetVertexBufferParams(verts.Count,
                 new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3),
                 new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3),
@@ -230,12 +230,13 @@ public class VoxelMesh : MonoBehaviour
                 }
                 data.SetSubMesh(k++, new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count));
             }
-        // });
+        });
         Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
         mesh.RecalculateBounds();
         mesh.RecalculateNormals();
         mesh.RecalculateTangents();
-        Physics.BakeMesh(mesh.GetInstanceID(), false, MeshColliderCookingOptions.None);
+        int instId = mesh.GetInstanceID();
+        await Task.Run(() => Physics.BakeMesh(instId, false));
         if (verts.Count == 0)
         {
             meshFilter.sharedMesh = null;

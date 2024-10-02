@@ -57,12 +57,12 @@ public partial class BasisDemoVoxels
         }
         foreach (var chunk in meshes)
         {
-            chunk.UpdateMesh();
+            // chunk.UpdateMesh();
         }
         foreach (var chunk in chunks.Values)
         {
-            // if (chunk.meshRenderer != null && chunk.meshRenderer.enabled)
-            //     chunk.UpdateMesh();
+            if (chunk.meshRenderer != null && chunk.meshRenderer.enabled)
+                chunk.UpdateMesh();
         }
         genRunning = false;
     }

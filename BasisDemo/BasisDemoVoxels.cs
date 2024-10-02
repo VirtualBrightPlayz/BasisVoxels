@@ -76,6 +76,11 @@ public partial class BasisDemoVoxels : VoxelWorld
         UpdateTimeCycle();
     }
 
+    private void FixedUpdate()
+    {
+        // TickWorld(Time.fixedDeltaTime);
+    }
+
     private void InitLocalPlayer()
     {
         BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate += OnPostSimulate;
@@ -120,6 +125,11 @@ public partial class BasisDemoVoxels : VoxelWorld
                 light.range = vox.Emit.a;
             }
         }
+    }
+
+    public override void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
+    {
+        base.TickVoxel(delta, voxelPos, voxel);
     }
 
     [ContextMenu(nameof(SaveWorld))]

@@ -83,6 +83,29 @@ public abstract class VoxelWorld : MonoBehaviour
         }
     }
 
+    public virtual void TickWorld(double delta)
+    {
+        foreach (var chunk in chunks.Values)
+        {
+            TickChunk(delta, chunk.chunk);
+        }
+    }
+
+    public virtual void TickChunk(double delta, Chunk chunk)
+    {
+        Vector3Int chunkPos = UnroundPosition(chunk.chunkPosition);
+        for (int x = 0; x < Chunk.SIZE; x++)
+            for (int y = 0; y < Chunk.SIZE; y++)
+                for (int z = 0; z < Chunk.SIZE; z++)
+                {
+                    TickVoxel(delta, chunkPos + new Vector3Int(x, y, z), chunk.GetVoxel(x, y, z));
+                }
+    }
+
+    public virtual void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
+    {
+    }
+
     public void QueueUpdateChunks(Vector3Int chunkPos)
     {
         for (int x = -1; x <= 1; x++)
@@ -125,8 +148,6 @@ public abstract class VoxelWorld : MonoBehaviour
                                     {
                                         Voxel vox = chunk.chunk.GetVoxel(x2, y2, z2);
                                         vox.Light = new Color32(0, 0, 0, 0);
-                                        // if (vox.Emit.a == 0)
-                                        //     continue;
                                         if (vox.Emit.a == 0 || (vox.Emit.r == 0 && vox.Emit.g == 0 && vox.Emit.b == 0))
                                         {
                                             subLights.Enqueue(UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2));
