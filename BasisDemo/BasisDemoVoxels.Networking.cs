@@ -164,7 +164,7 @@ public partial class BasisDemoVoxels
     private async void OnNetSeed()
     {
         foreach (var pos in chunks.Keys)
-            await UpdateChunks(pos, false);
+            await UpdateChunks(pos, false, true);
         foreach (var pos in chunks.Values)
             pos.UpdateMesh();
         await GenerateMap(false);
@@ -184,8 +184,6 @@ public partial class BasisDemoVoxels
             else
                 mesh.chunk.voxels[i].Emit = new Color32(0, 0, 0, 0);
         }
-        // await UpdateChunks(msg.pos);
-        // QueueUpdateChunks(msg.pos);
     }
 
     private void SendSeed(ushort[] targets = null)

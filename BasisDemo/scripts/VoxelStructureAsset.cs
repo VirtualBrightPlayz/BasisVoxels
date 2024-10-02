@@ -3,7 +3,7 @@ using UnityEngine;
 [CreateAssetMenu]
 public class VoxelStructureAsset : ScriptableObject
 {
-    public int biome = -1;
+    public BiomeAsset biome;
     public int density = 8;
     public TextAsset text;
     [HideInInspector]

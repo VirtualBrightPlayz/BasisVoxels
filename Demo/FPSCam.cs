@@ -59,7 +59,7 @@ public class FPSCam : MonoBehaviour
                 {
                     vox.Id = 0;
                 }
-                _ = world.UpdateChunks(VoxelWorld.FloorPosition(block), true);
+                // _ = world.UpdateChunks(VoxelWorld.FloorPosition(block), true);
             }
         }
         if (placeBlock)
@@ -74,7 +74,7 @@ public class FPSCam : MonoBehaviour
                 {
                     vox.Id = placeId;
                 }
-                _ = world.UpdateChunks(VoxelWorld.FloorPosition(block), true);
+                // _ = world.UpdateChunks(VoxelWorld.FloorPosition(block), true);
             }
         }
     }

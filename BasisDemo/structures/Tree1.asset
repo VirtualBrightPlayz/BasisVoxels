@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd1e193a102dbdb4fa35c78a069f8ee8, type: 3}
   m_Name: Tree1
   m_EditorClassIdentifier: 
-  biome: -1
-  density: 8
+  biome: {fileID: 11400000, guid: 7edcffabec2f6b945bae9298ef9c1a4d, type: 2}
+  density: 6
   text: {fileID: 4900000, guid: 6d852aa902733c449b2f0b857ba90113, type: 3}
   contents: '# Goxel 0.15.1
 

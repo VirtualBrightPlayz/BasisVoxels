@@ -72,6 +72,7 @@ public partial class BasisDemoVoxels : VoxelWorld
     private void Update()
     {
         UpdateTasks();
+        UpdateMapGen();
         UpdateTimeCycle();
     }
 

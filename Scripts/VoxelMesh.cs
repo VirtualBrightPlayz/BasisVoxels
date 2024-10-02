@@ -179,7 +179,7 @@ public class VoxelMesh : MonoBehaviour
 
     public async Task UpdateMeshAsync()
     {
-        if (isUpdating || mesh == null || chunk == null)
+        if (isUpdating || mesh == null || chunk == null || !meshRenderer.enabled)
             return;
         isUpdating = true;
         verts.Clear();
@@ -258,21 +258,18 @@ public class VoxelMesh : MonoBehaviour
         // return Task.CompletedTask;
     }
 
-    public Task Setup()
+    public async Task Setup()
     {
         meshRenderer = GetComponent<MeshRenderer>();
         meshFilter = GetComponent<MeshFilter>();
         meshCollider = GetComponent<MeshCollider>();
         mesh = new Mesh();
         Vector3 pos = transform.position;
-        chunk = new Chunk(VoxelWorld.FloorPosition(pos));
-        return Task.CompletedTask;
-        /*
+        // chunk = new Chunk(VoxelWorld.FloorPosition(pos));
         await Task.Run(() =>
         {
             chunk = new Chunk(VoxelWorld.FloorPosition(pos));
         });
-        */
     }
 
     [Obsolete]
