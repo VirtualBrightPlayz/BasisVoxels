@@ -187,7 +187,7 @@ MonoBehaviour:
   - cccccc
   - ff0000
   - ff9000
-  genOnStart: 1
+  genOnStart: 0
   inventoryAction:
     m_Name: Inventory
     m_Type: 0
