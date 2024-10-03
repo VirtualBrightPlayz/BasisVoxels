@@ -22,15 +22,18 @@ public partial class BasisDemoVoxels
     public FastNoiseLite biomeNoise;
     public bool hasMap = false;
 
+    private bool mapGenRunning = false;
+
     private Vector3Int lastPos;
     private Dictionary<ushort, Vector3Int> playerPositions = new Dictionary<ushort, Vector3Int>();
 
     private async Task TryGenChunk(Vector3Int pos)
     {
-        while (genRunning)
+        while (mapGenRunning)
             await Task.Delay(100);
+        // if (mapGenRunning)
             // return;
-        genRunning = true;
+        mapGenRunning = true;
         List<VoxelMesh> meshes = new List<VoxelMesh>();
         for (int x = -renderDistance; x <= renderDistance; x++)
         {
@@ -38,7 +41,7 @@ public partial class BasisDemoVoxels
             {
                 for (int z = -renderDistance; z <= renderDistance; z++)
                 {
-                    VoxelMesh mesh = await SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
+                    VoxelMesh mesh = SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
                     if (mesh != null)
                         meshes.Add(mesh);
                 }
@@ -64,21 +67,11 @@ public partial class BasisDemoVoxels
             meshTasks[i].Start();
         }
         await Task.WhenAll(meshTasks);
-        List<Task> tasks = new List<Task>();
         foreach (var chunk in meshes)
         {
-            // await chunk.UpdateMeshAsync();
-            tasks.Add(chunk.UpdateMeshAsync());
+            chunk.QueueUpdateMesh();
         }
-        /*
-        foreach (var chunk in chunks.Values)
-        {
-            if (chunk.meshRenderer != null && chunk.meshRenderer.enabled)
-                tasks.Add(chunk.UpdateMeshAsync());
-        }
-        */
-        await Task.WhenAll(tasks);
-        genRunning = false;
+        mapGenRunning = false;
     }
 
     public int GetSurfaceLevel(int x, int z)
@@ -136,23 +129,22 @@ public partial class BasisDemoVoxels
                 for (int y = 0; y < Chunk.SIZE; y++)
                 {
                     Vector3Int worldPos = chunk.chunkPosition * Chunk.SIZE + new Vector3Int(x, y, z);
-                    Voxel vox = chunk.GetVoxel(x, y, z);
-                    if (vox != null)
+                    if (TryGetVoxel(x, y, z, out Voxel vox))
                     {
                         if (worldPos.y < 3 && worldPos.y < height)
                         {
                             vox.Id = floorBlockId;
-                            SetVoxel(worldPos, vox.Id);
+                            SetVoxelWithData(worldPos, vox);
                         }
                         else if (worldPos.y < height)
                         {
                             vox.Id = (byte)types.IndexOf(biomes[biome].surface);
-                            SetVoxel(worldPos, vox.Id);
+                            SetVoxelWithData(worldPos, vox);
                         }
                         else
                         {
                             vox.Id = 0;
-                            SetVoxel(worldPos, vox.Id);
+                            SetVoxelWithData(worldPos, vox);
                         }
                     }
                 }
@@ -200,17 +192,18 @@ public partial class BasisDemoVoxels
         if (BasisLocalCameraDriver.Instance != null && BasisLocalCameraDriver.Instance.Camera != null)
         {
             Vector3Int pos = FloorPosition(BasisLocalCameraDriver.Instance.Camera.transform.position);
-            if (lastPos != pos && !genRunning)
+            if (lastPos != pos)
             {
                 tasks.Add(TryGenChunk(pos));
-                // if (chunks.TryGetValue(pos, out VoxelMesh mesh))
-                {
-                    // mesh.UpdateMesh();
-                }
                 lastPos = pos;
             }
         }
         await Task.WhenAll(tasks);
+        foreach (var plr in BasisNetworkManagement.Players)
+        {
+            if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
+                SendChunks(plr.Key, pos);
+        }
     }
 
     private async Task GenerateMap(bool actually)

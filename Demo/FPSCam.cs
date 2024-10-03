@@ -54,8 +54,8 @@ public class FPSCam : MonoBehaviour
             if (Physics.Raycast(ray, out RaycastHit hit) && hit.transform.TryGetComponent(out VoxelMesh _))
             {
                 Vector3 block = hit.point - hit.normal * 0.5f;
-                Voxel vox = world.GetVoxel(block);
-                if (vox != null)
+                // Voxel vox = world.GetVoxel(block);
+                if (world.TryGetVoxel(VoxelWorld.GetVoxelPosition(block), out Voxel vox))
                 {
                     vox.Id = 0;
                 }
@@ -69,8 +69,7 @@ public class FPSCam : MonoBehaviour
             if (Physics.Raycast(ray, out RaycastHit hit) && hit.transform.TryGetComponent(out VoxelMesh _))
             {
                 Vector3 block = hit.point + hit.normal * 0.5f;
-                Voxel vox = world.GetVoxel(block);
-                if (vox != null)
+                if (world.TryGetVoxel(VoxelWorld.GetVoxelPosition(block), out Voxel vox))
                 {
                     vox.Id = placeId;
                 }

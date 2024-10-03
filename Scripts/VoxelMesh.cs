@@ -26,6 +26,7 @@ public class VoxelMesh : MonoBehaviour
     [HideInInspector]
     public MeshCollider meshCollider;
     private bool isUpdating = false;
+    private int shouldUpdate = 0;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ChunkVertex
@@ -55,8 +56,7 @@ public class VoxelMesh : MonoBehaviour
 
     private void AddVoxel(int x, int y, int z, ref bool[] visibleFaces, ref Color32[] lightFaces)
     {
-        Voxel vox = chunk.GetVoxel(x, y, z);
-        if (vox.IsActive)
+        if (chunk.TryGetVoxel(x, y, z, out Voxel vox) && vox.IsActive)
         {
             visibleFaces[0] = world.IsFaceVisible(chunk, x, y + 1, z); // up
             visibleFaces[1] = world.IsFaceVisible(chunk, x, y - 1, z); // down
@@ -65,13 +65,12 @@ public class VoxelMesh : MonoBehaviour
             visibleFaces[4] = world.IsFaceVisible(chunk, x, y, z + 1); // forward
             visibleFaces[5] = world.IsFaceVisible(chunk, x, y, z - 1); // back
 
-            Color32 unlit = new Color32(0, 0, 0, 0);
-            lightFaces[0] = world.GetVoxel(chunk, x, y + 1, z)?.Light ?? unlit;
-            lightFaces[1] = world.GetVoxel(chunk, x, y - 1, z)?.Light ?? unlit;
-            lightFaces[2] = world.GetVoxel(chunk, x - 1, y, z)?.Light ?? unlit;
-            lightFaces[3] = world.GetVoxel(chunk, x + 1, y, z)?.Light ?? unlit;
-            lightFaces[4] = world.GetVoxel(chunk, x, y, z + 1)?.Light ?? unlit;
-            lightFaces[5] = world.GetVoxel(chunk, x, y, z - 1)?.Light ?? unlit;
+            lightFaces[0] = world.GetVoxelOrDefault(chunk, x, y + 1, z).Light;
+            lightFaces[1] = world.GetVoxelOrDefault(chunk, x, y - 1, z).Light;
+            lightFaces[2] = world.GetVoxelOrDefault(chunk, x - 1, y, z).Light;
+            lightFaces[3] = world.GetVoxelOrDefault(chunk, x + 1, y, z).Light;
+            lightFaces[4] = world.GetVoxelOrDefault(chunk, x, y, z + 1).Light;
+            lightFaces[5] = world.GetVoxelOrDefault(chunk, x, y, z - 1).Light;
 
             for (int i = 0; i < 6; i++)
             {
@@ -175,15 +174,22 @@ public class VoxelMesh : MonoBehaviour
         trisLookup[id].Add(vertCount - 1);
     }
 
-    public async void UpdateMesh()
+    private void Update()
     {
-        await UpdateMeshAsync();
+        if (shouldUpdate > 0 && !isUpdating)
+            _ = UpdateMeshAsync();
+    }
+
+    public void QueueUpdateMesh()
+    {
+        shouldUpdate = Mathf.Min(shouldUpdate + 1, 3);
     }
 
     public async Task UpdateMeshAsync()
     {
         if (isUpdating || mesh == null || chunk == null /*|| !meshRenderer.enabled*/)
             return;
+        shouldUpdate = Mathf.Max(shouldUpdate - 1, 0);
         isUpdating = true;
         verts.Clear();
         trisLookup.Clear();
@@ -237,18 +243,16 @@ public class VoxelMesh : MonoBehaviour
         mesh.RecalculateBounds();
         mesh.RecalculateNormals();
         mesh.RecalculateTangents();
+        if (verts.Count == 0)
+            meshFilter.sharedMesh = null;
+        else
+            meshFilter.sharedMesh = mesh;
         int instId = mesh.GetInstanceID();
         await Task.Run(() => Physics.BakeMesh(instId, false));
         if (verts.Count == 0)
-        {
-            meshFilter.sharedMesh = null;
             meshCollider.sharedMesh = null;
-        }
         else
-        {
-            meshFilter.sharedMesh = mesh;
             meshCollider.sharedMesh = mesh;
-        }
         Material[] tempList = new Material[trisLookup.Count];
         int i2 = 0;
         foreach (var id in trisLookup.Keys)
@@ -262,18 +266,14 @@ public class VoxelMesh : MonoBehaviour
         isUpdating = false;
     }
 
-    public async Task Setup()
+    public void Setup()
     {
         meshRenderer = GetComponent<MeshRenderer>();
         meshFilter = GetComponent<MeshFilter>();
         meshCollider = GetComponent<MeshCollider>();
         mesh = new Mesh();
         Vector3 pos = transform.position;
-        // chunk = new Chunk(VoxelWorld.FloorPosition(pos));
-        await Task.Run(() =>
-        {
-            chunk = new Chunk(VoxelWorld.FloorPosition(pos));
-        });
+        chunk = new Chunk(VoxelWorld.FloorPosition(pos));
     }
 
     [Obsolete]

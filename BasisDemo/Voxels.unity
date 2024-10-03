@@ -156,17 +156,9 @@ MonoBehaviour:
   - {fileID: 2100000, guid: eb742ae9f24497543b911db2030a10e3, type: 2}
   prefab: {fileID: 427715546}
   seed: 1337
-  structureAssets:
-  - {fileID: 11400000, guid: c3eccb8584838fc41a8cb8298b4e8199, type: 2}
-  - {fileID: 11400000, guid: 9060258aced46694784702d7de0b5fe2, type: 2}
-  - {fileID: 11400000, guid: d0eace0de2844a843a84b37922e7db1e, type: 2}
-  biomes:
-  - {fileID: 11400000, guid: 7edcffabec2f6b945bae9298ef9c1a4d, type: 2}
-  - {fileID: 11400000, guid: 8227efbf110ec934cb93c95c06316034, type: 2}
-  floorBlockId: 2
-  hasMap: 0
-  timeSpeed: 0.8333333
-  minAmbientLight: 0.75
+  tickRate: 20
+  tickSpeed: 1
+  maxTicks: 60
   types:
   - {fileID: 11400000, guid: a9b8fb0c932aa91439b6733db64cc462, type: 2}
   - {fileID: 11400000, guid: a70623a320b28d14aae74e3be74df44b, type: 2}
@@ -198,7 +190,7 @@ MonoBehaviour:
   - cccccc
   - ff0000
   - ff9000
-  genOnStart: 1
+  genOnStart: 0
   inventoryAction:
     m_Name: Inventory
     m_Type: 0
@@ -216,6 +208,17 @@ MonoBehaviour:
       m_Action: Inventory
       m_Flags: 0
     m_Flags: 0
+  structureAssets:
+  - {fileID: 11400000, guid: c3eccb8584838fc41a8cb8298b4e8199, type: 2}
+  - {fileID: 11400000, guid: 9060258aced46694784702d7de0b5fe2, type: 2}
+  - {fileID: 11400000, guid: d0eace0de2844a843a84b37922e7db1e, type: 2}
+  biomes:
+  - {fileID: 11400000, guid: 7edcffabec2f6b945bae9298ef9c1a4d, type: 2}
+  - {fileID: 11400000, guid: 8227efbf110ec934cb93c95c06316034, type: 2}
+  floorBlockId: 2
+  hasMap: 0
+  timeSpeed: 0.8333333
+  minAmbientLight: 0.75
 --- !u!4 &63342781
 Transform:
   m_ObjectHideFlags: 0

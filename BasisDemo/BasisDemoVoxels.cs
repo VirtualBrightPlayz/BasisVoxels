@@ -16,6 +16,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 {
     public struct SandVoxelData
     {
+        public bool isFalling;
         public double timeUntilFall;
     }
 
@@ -80,6 +81,7 @@ public partial class BasisDemoVoxels : VoxelWorld
         UpdateTasks();
         UpdateMapGen();
         UpdateTimeCycle();
+        // Tick();
         // if (!tickRunning)
             // Task.Run(() => Tick());
     }
@@ -102,8 +104,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public override void ProcessLight(Vector3Int pos)
     {
-        Voxel vox = GetVoxel(pos);
-        if (vox != null)
+        if (TryGetVoxel(pos, out Voxel vox))
         {
             if (blockLights.TryGetValue(pos, out Light light))
             {
@@ -130,9 +131,18 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
+    public override void UpdateTasks()
+    {
+        if (!genRunning && hasMap && chunkUpdateQueue.TryDequeue(out Vector3Int chunkPos))
+        {
+            _ = UpdateChunks(chunkPos, true, true);
+        }
+    }
+
     public override void TickChunk(double delta, Chunk chunk)
     {
-        if ((lastPos - chunk.chunkPosition).sqrMagnitude <= renderDistance * renderDistance)
+        float dist = renderDistance * 0.5f;
+        if (((Vector3)lastPos - chunk.chunkPosition).sqrMagnitude <= dist * dist)
         {
             base.TickChunk(delta, chunk);
         }
@@ -141,10 +151,9 @@ public partial class BasisDemoVoxels : VoxelWorld
     public override void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
     {
         base.TickVoxel(delta, voxelPos, voxel);
-        if (voxel.UserData is SandVoxelData sand)
+        if (voxel.UserData is SandVoxelData sand && sand.isFalling)
         {
-            Voxel downVox = GetVoxel(voxelPos + Vector3Int.down);
-            if (downVox != null && !downVox.IsActive)
+            if (TryGetVoxel(voxelPos + Vector3Int.down, out Voxel downVox) && !downVox.IsActive)
             {
                 sand.timeUntilFall -= delta;
                 if (sand.timeUntilFall <= 0)
@@ -153,24 +162,28 @@ public partial class BasisDemoVoxels : VoxelWorld
                     QueueSetVoxel(voxelPos, 0);
                 }
                 else
+                {
                     voxel.UserData = sand;
+                    SetVoxelRaw(voxelPos, voxel);
+                }
             }
         }
     }
 
-    public override void SetVoxelData(Voxel vox, Vector3Int pos, byte id)
+    public override Voxel SetVoxelData(Voxel vox, Vector3Int pos)
     {
-        vox.Id = id;
-        if (types[id].lit)
-            vox.Emit = types[id].litColor;
+        if (types[vox.Id].lit)
+            vox.Emit = types[vox.Id].litColor;
         else
             vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
         vox.UserData = null;
-        if (types[id].sand)
+        if (types[vox.Id].sand)
             vox.UserData = new SandVoxelData()
             {
-                timeUntilFall = 0.2d,
+                isFalling = false,
+                timeUntilFall = 0.75d,
             };
+        return vox;
     }
 
     [ContextMenu(nameof(SaveWorld))]
@@ -393,11 +406,11 @@ public partial class BasisDemoVoxels : VoxelWorld
             Vector3 block = hit.point - hit.normal * 0.5f;
             if ((int)block.y == 0)
                 return;
-            Voxel vox = GetVoxel(block);
             Vector3Int pos = GetVoxelPosition(block);
-            if (vox != null)
+            if (TryGetVoxel(pos, out Voxel vox))
             {
-                SetVoxel(pos, 0);
+                vox.Id = 0;
+                SetVoxelWithData(pos, vox);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, 0);
             }
@@ -410,13 +423,13 @@ public partial class BasisDemoVoxels : VoxelWorld
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) && hit.transform.TryGetComponent(out VoxelMesh _))
         {
             Vector3 block = hit.point + hit.normal * 0.5f;
-            Voxel vox = GetVoxel(block);
             Vector3Int pos = GetVoxelPosition(block);
             if (IsEntityBlocking(pos))
                 return;
-            if (vox != null)
+            if (TryGetVoxel(pos, out Voxel vox))
             {
-                SetVoxel(pos, id);
+                vox.Id = id;
+                SetVoxelWithData(pos, vox);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, id);
             }

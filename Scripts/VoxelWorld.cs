@@ -37,35 +37,53 @@ public abstract class VoxelWorld : MonoBehaviour
         return new Vector3Int(pos.x * Chunk.SIZE, pos.y * Chunk.SIZE, pos.z * Chunk.SIZE);
     }
 
-    public Voxel GetVoxel(int x, int y, int z)
-    {
-        return GetVoxel(new Vector3(x, y, z));
-    }
-
-    public Voxel GetVoxel(Chunk chunk, int x, int y, int z)
-    {
-        if (chunk != null)
-        {
-            Vector3Int voxelPos = new Vector3Int(x, y, z) + UnroundPosition(chunk.chunkPosition);
-            return GetVoxel(voxelPos.x, voxelPos.y, voxelPos.z);
-        }
-        return null;
-    }
-
-    public Vector3Int GetVoxelPosition(Vector3 pos)
+    public static Vector3Int GetVoxelPosition(Vector3 pos)
     {
         return new Vector3Int(Mathf.FloorToInt(pos.x), Mathf.FloorToInt(pos.y), Mathf.FloorToInt(pos.z));
     }
 
-    public Voxel GetVoxel(Vector3 pos)
+    public Voxel GetVoxelOrDefault(int x, int y, int z)
     {
+        Voxel vox;
+        if (!TryGetVoxel(x, y, z, out vox))
+            vox.Init();
+        return vox;
+    }
+
+    public Voxel GetVoxelOrDefault(Chunk chunk, int x, int y, int z)
+    {
+        Voxel vox;
+        if (!TryGetVoxel(chunk, x, y, z, out vox))
+            vox.Init();
+        return vox;
+    }
+
+    public bool TryGetVoxel(int x, int y, int z, out Voxel voxel)
+    {
+        return TryGetVoxel(new Vector3Int(x, y, z), out voxel);
+    }
+
+    public bool TryGetVoxel(Chunk chunk, int x, int y, int z, out Voxel voxel)
+    {
+        voxel = default;
+        if (chunk != null)
+        {
+            Vector3Int voxelPos = new Vector3Int(x, y, z) + UnroundPosition(chunk.chunkPosition);
+            return TryGetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, out voxel);
+        }
+        return false;
+    }
+
+    public bool TryGetVoxel(Vector3Int pos, out Voxel voxel)
+    {
+        voxel = default;
         Vector3Int chunkPos = FloorPosition(pos);
         if (chunks.TryGetValue(chunkPos, out VoxelMesh chunk) && chunk.chunk != null)
         {
             Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
-            return chunk.chunk.GetVoxel(voxelPos.x, voxelPos.y, voxelPos.z);
+            return chunk.chunk.TryGetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, out voxel);
         }
-        return null;
+        return false;
     }
 
     public bool IsFaceVisible(Chunk chunk, int x, int y, int z)
@@ -76,8 +94,7 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public bool IsFaceVisible(int x, int y, int z)
     {
-        Voxel vox = GetVoxel(x, y, z);
-        if (vox == null)
+        if (!TryGetVoxel(x, y, z, out Voxel vox))
             return true;
         return !vox.IsActive;
     }
@@ -120,8 +137,12 @@ public abstract class VoxelWorld : MonoBehaviour
         }
         while (voxelUpdateQueue.TryDequeue(out (Vector3Int pos, byte id) voxelData))
         {
-            SetVoxel(voxelData.pos, voxelData.id);
-            QueueUpdateChunks(FloorPosition(voxelData.pos), false);
+            if (TryGetVoxel(voxelData.pos, out Voxel voxel))
+            {
+                voxel.Id = voxelData.id;
+                SetVoxelWithData(voxelData.pos, voxel);
+                QueueUpdateChunks(FloorPosition(voxelData.pos), false);
+            }
         }
     }
 
@@ -132,7 +153,8 @@ public abstract class VoxelWorld : MonoBehaviour
             for (int y = 0; y < Chunk.SIZE; y++)
                 for (int z = 0; z < Chunk.SIZE; z++)
                 {
-                    TickVoxel(delta, chunkPos + new Vector3Int(x, y, z), chunk.GetVoxel(x, y, z));
+                    if (chunk.TryGetVoxel(x, y, z, out Voxel voxel))
+                        TickVoxel(delta, chunkPos + new Vector3Int(x, y, z), voxel);
                 }
     }
 
@@ -147,7 +169,7 @@ public abstract class VoxelWorld : MonoBehaviour
                 for (int y = -1; y <= 1; y++)
                     for (int z = -1; z <= 1; z++)
                         if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                            chunk.UpdateMesh();
+                            chunk.QueueUpdateMesh();
         if (chunkUpdateQueue.Contains(chunkPos))
             return;
         chunkUpdateQueue.Enqueue(chunkPos);
@@ -158,24 +180,36 @@ public abstract class VoxelWorld : MonoBehaviour
         voxelUpdateQueue.Enqueue((pos, id));
     }
 
-    public void SetVoxel(Vector3Int pos, byte id)
+    public void SetVoxelRaw(Vector3Int pos, Voxel voxel)
     {
-        Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
-        if (vox == null)
-            return;
-        SetVoxelData(vox, pos, id);
+        Vector3Int chunkPos = FloorPosition(pos);
+        if (chunks.TryGetValue(chunkPos, out VoxelMesh mesh) && mesh.chunk != null)
+        {
+            Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
+            mesh.chunk.SetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, voxel);
+        }
     }
 
-    public virtual void SetVoxelData(Voxel vox, Vector3Int pos, byte id)
+    public void SetVoxelWithData(Vector3Int pos, Voxel voxel)
     {
-        vox.Id = id;
+        Vector3Int chunkPos = FloorPosition(pos);
+        if (chunks.TryGetValue(chunkPos, out VoxelMesh mesh) && mesh.chunk != null)
+        {
+            Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
+            mesh.chunk.SetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, SetVoxelData(voxel, pos));
+        }
+    }
+
+    public virtual Voxel SetVoxelData(Voxel vox, Vector3Int pos)
+    {
+        return vox;
     }
 
     public virtual void ProcessLight(Vector3Int pos)
     {
     }
 
-    public async Task UpdateChunks(Vector3Int chunkPos, bool updateMeshes, bool updateLightmap)
+    public async Task UpdateChunks(Vector3Int chunkPos, bool updateMeshes, bool updateLightmap, int area = 1)
     {
         if (genRunning)
             return;
@@ -184,24 +218,32 @@ public abstract class VoxelWorld : MonoBehaviour
         Queue<(Vector3Int, Color32)> lights = new Queue<(Vector3Int, Color32)>();
         if (updateLightmap)
         {
-            for (int x = -1; x <= 1; x++)
-                for (int y = -1; y <= 1; y++)
-                    for (int z = -1; z <= 1; z++)
+            for (int x = -area; x <= area; x++)
+                for (int y = -area; y <= area; y++)
+                    for (int z = -area; z <= area; z++)
                         if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
                         {
                             for (int x2 = 0; x2 < Chunk.SIZE; x2++)
                                 for (int y2 = 0; y2 < Chunk.SIZE; y2++)
                                     for (int z2 = 0; z2 < Chunk.SIZE; z2++)
                                     {
-                                        Voxel vox = chunk.chunk.GetVoxel(x2, y2, z2);
-                                        vox.Light = new Color32(0, 0, 0, 0);
-                                        if (vox.Emit.a == 0 || (vox.Emit.r == 0 && vox.Emit.g == 0 && vox.Emit.b == 0))
+                                        if (chunk.chunk.TryGetVoxel(x2, y2, z2, out Voxel vox))
                                         {
-                                            subLights.Enqueue(UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2));
-                                            vox.Emit.a = 0;
+                                            vox.Light = new Color32(0, 0, 0, 0);
+                                            if (vox.Emit.a == 0)
+                                            {
+                                                chunk.chunk.SetVoxel(x2, y2, z2, vox);
+                                                continue;
+                                            }
+                                            if (vox.Emit.a == 0 || (vox.Emit.r == 0 && vox.Emit.g == 0 && vox.Emit.b == 0))
+                                            {
+                                                subLights.Enqueue(UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2));
+                                                vox.Emit.a = 0;
+                                            }
+                                            else
+                                                lights.Enqueue((UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2), vox.Emit));
+                                            chunk.chunk.SetVoxel(x2, y2, z2, vox);
                                         }
-                                        else
-                                            lights.Enqueue((UnroundPosition(chunkPos + new Vector3Int(x, y, z)) + new Vector3Int(x2, y2, z2), vox.Emit));
                                     }
                         }
         }
@@ -218,16 +260,16 @@ public abstract class VoxelWorld : MonoBehaviour
         }
         if (updateMeshes)
         {
-            for (int x = -1; x <= 1; x++)
-                for (int y = -1; y <= 1; y++)
-                    for (int z = -1; z <= 1; z++)
+            for (int x = -area; x <= area; x++)
+                for (int y = -area; y <= area; y++)
+                    for (int z = -area; z <= area; z++)
                         if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                            await chunk.UpdateMeshAsync();
+                            chunk.QueueUpdateMesh();
         }
         genRunning = false;
     }
 
-    public async Task<VoxelMesh> SpawnOrGetChunk(Vector3Int pos)
+    public VoxelMesh SpawnOrGetChunk(Vector3Int pos)
     {
         if (chunks.TryGetValue(pos, out VoxelMesh ch))
         {
@@ -238,20 +280,20 @@ public abstract class VoxelWorld : MonoBehaviour
             VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
             chunk.world = this;
             chunk.gameObject.SetActive(true);
-            await chunk.Setup();
+            chunk.Setup();
             chunks.Add(pos, chunk);
             return chunk;
         }
     }
 
-    public async Task<VoxelMesh> SpawnChunk(Vector3Int pos)
+    public VoxelMesh SpawnChunk(Vector3Int pos)
     {
         if (!chunks.ContainsKey(pos))
         {
             VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
             chunk.world = this;
             chunk.gameObject.SetActive(true);
-            await chunk.Setup();
+            chunk.Setup();
             chunks.Add(pos, chunk);
             return chunk;
         }
@@ -264,8 +306,6 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public void UpdateLightmap(Vector3Int voxPos, Color32 baseLight)
     {
-        // if (baseLight.r == 0 && baseLight.g == 0 && baseLight.b == 0)
-        //     return;
         Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
         queue.Enqueue((voxPos, baseLight));
         List<Vector3Int> list = new List<Vector3Int>();
@@ -275,8 +315,7 @@ public abstract class VoxelWorld : MonoBehaviour
             if (list.Contains(pos) || light.a <= 0)
                 continue;
             list.Add(pos);
-            Voxel vox = GetVoxel(pos);
-            if (vox == null)
+            if (!TryGetVoxel(pos, out Voxel vox))
                 continue;
             if (vox.IsActive && pos != voxPos)
                 continue;
@@ -295,6 +334,7 @@ public abstract class VoxelWorld : MonoBehaviour
             vox.Light.b = light.b;
             vox.Light.a = light.a;
             light.a--;
+            SetVoxelRaw(pos, vox);
             if (!list.Contains(pos + Vector3Int.up))
                 queue.Enqueue((pos + Vector3Int.up, light));
             if (!list.Contains(pos + Vector3Int.down))
@@ -307,11 +347,6 @@ public abstract class VoxelWorld : MonoBehaviour
                 queue.Enqueue((pos + Vector3Int.forward, light));
             if (!list.Contains(pos + Vector3Int.back))
                 queue.Enqueue((pos + Vector3Int.back, light));
-        }
-        if (baseLight.r == 0 && baseLight.g == 0 && baseLight.b == 0)
-        {
-            // Voxel vox = GetVoxel(voxPos);
-            // vox.Emit = new Color32(0, 0, 0, 0);
         }
     }
 

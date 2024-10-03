@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
@@ -15,6 +17,8 @@ public partial class BasisDemoVoxels
     public const ushort ChunkMessageId = 5136;
     public const ushort TimeMessageId = 5137;
     public const string OwnershipID = "VoxelWorld";
+
+    private Dictionary<ushort, List<Vector3Int>> sentChunks = new Dictionary<ushort, List<Vector3Int>>();
 
     public struct NetSeedMsg
     {
@@ -110,17 +114,17 @@ public partial class BasisDemoVoxels
         if (IsOwner)
         {
             ushort[] targets = new ushort[] { player1.NetId };
-            foreach (var pos in chunks.Keys)
-            {
-                SendChunk(pos, targets);
-            }
+            SendChunks(player1.NetId, Vector3Int.zero);
             SendSeed(targets);
+            SendTime(timeRotation);
         }
     }
 
     private void OnRemoteLeft(BasisNetworkedPlayer player1, BasisRemotePlayer player2)
     {
         BasisNetworkManagement.RequestCurrentOwnership(OwnershipID);
+        sentChunks.Remove(player1.NetId);
+        playerPositions.Remove(player1.NetId);
     }
 
     private void OnSceneMessage(ushort PlayerID, ushort MessageIndex, byte[] buffer, ushort[] Recipients)
@@ -137,10 +141,10 @@ public partial class BasisDemoVoxels
             case VoxelMessageId:
             {
                 NetVoxelMsg msg = SerializationUtility.DeserializeValue<NetVoxelMsg>(buffer, DataFormat.Binary);
-                Voxel vox = GetVoxel(msg.pos);
-                if (vox != null)
+                if (TryGetVoxel(msg.pos, out Voxel vox))
                 {
-                    SetVoxel(msg.pos, msg.id);
+                    vox.Id = msg.id;
+                    SetVoxelWithData(msg.pos, vox);
                     PlayBlockSoundAt(msg.pos);
                     QueueUpdateChunks(FloorPosition(msg.pos), true);
                 }
@@ -148,12 +152,16 @@ public partial class BasisDemoVoxels
             }
             case ChunkMessageId:
             {
+                if (PlayerID != OwnerId)
+                    break;
                 NetChunkMsg msg = SerializationUtility.DeserializeValue<NetChunkMsg>(Decompress(buffer), DataFormat.Binary);
                 OnNetChunk(msg);
                 break;
             }
             case TimeMessageId:
             {
+                if (PlayerID != OwnerId)
+                    break;
                 NetTimeMsg msg = SerializationUtility.DeserializeValue<NetTimeMsg>(buffer, DataFormat.Binary);
                 timeRotation = msg.time;
                 break;
@@ -163,16 +171,16 @@ public partial class BasisDemoVoxels
 
     private async void OnNetSeed()
     {
-        foreach (var pos in chunks.Keys)
-            await UpdateChunks(pos, false, true);
-        foreach (var pos in chunks.Values)
-            pos.UpdateMesh();
+        // foreach (var pos in chunks.Keys)
+            // await UpdateChunks(pos, false, true);
+        // foreach (var pos in chunks.Values)
+            // pos.UpdateMesh();
         await GenerateMap(false);
     }
 
-    private async void OnNetChunk(NetChunkMsg msg)
+    private void OnNetChunk(NetChunkMsg msg)
     {
-        VoxelMesh mesh = await SpawnOrGetChunk(msg.pos);
+        VoxelMesh mesh = SpawnOrGetChunk(msg.pos);
         int count = Mathf.Min(mesh.chunk.voxels.Length, msg.voxels.Length);
         for (int i = 0; i < count; i++)
         {
@@ -184,6 +192,7 @@ public partial class BasisDemoVoxels
             else
                 mesh.chunk.voxels[i].Emit = new Color32(0, 0, 0, 0);
         }
+        QueueUpdateChunks(msg.pos, false);
     }
 
     private void SendSeed(ushort[] targets = null)
@@ -196,8 +205,7 @@ public partial class BasisDemoVoxels
 
     private void SendVoxel(Vector3Int pos)
     {
-        Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
-        if (vox != null)
+        if (TryGetVoxel(pos, out Voxel vox))
         {
             SendVoxel(pos, vox.Id);
         }
@@ -224,6 +232,32 @@ public partial class BasisDemoVoxels
             id = id,
         }, DataFormat.Binary);
         BasisScene.NetworkMessageSend(VoxelMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered);
+    }
+
+    private void SendChunks(ushort target, Vector3Int chunkPos)
+    {
+        if (!sentChunks.ContainsKey(target))
+            sentChunks.Add(target, new List<Vector3Int>());
+        Vector3Int chunkPosNoY = chunkPos;
+        chunkPosNoY.y = 0;
+        ushort[] targets = new ushort[] { target };
+        foreach (var pos in chunks.Keys)
+        {
+            Vector3Int chunk = pos;
+            chunk.y = 0;
+            if ((chunk - chunkPosNoY).sqrMagnitude <= renderDistance * renderDistance)
+            {
+                if (!sentChunks[target].Contains(pos))
+                {
+                    SendChunk(pos, targets);
+                    sentChunks[target].Add(pos);
+                }
+            }
+            else
+            {
+                sentChunks[target].Remove(pos);
+            }
+        }
     }
 
     private void SendChunk(Vector3Int pos, ushort[] targets = null)

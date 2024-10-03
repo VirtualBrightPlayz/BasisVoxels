@@ -15,7 +15,7 @@ public partial class BasisDemoVoxels
         timeRotation %= 360f;
         if (IsOwner)
         {
-            if (Mathf.Abs(timeRotation - lastSentTime) > 1f)
+            if (Mathf.Abs(timeRotation - lastSentTime) > 5f)
             {
                 SendTime(timeRotation);
                 lastSentTime = timeRotation;

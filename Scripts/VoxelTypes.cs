@@ -1,12 +1,19 @@
 using UnityEngine;
 
-public sealed class Voxel
+public struct Voxel
 {
-    public byte Id = 0;
-    public Color32 Emit = new Color32(0, 0, 0, 0);
-    public Color32 Light = new Color32(0, 0, 0, 0);
+    public byte Id;
+    public Color32 Emit;
+    public Color32 Light;
     public bool IsActive => Id != 0;
-    public object UserData = null;
+    public object UserData;
+
+    public void Init()
+    {
+        Id = 0;
+        Emit = Light = new Color32(0, 0, 0, 0);
+        UserData = null;
+    }
 }
 
 public sealed class Chunk
@@ -15,11 +22,20 @@ public sealed class Chunk
     public Voxel[] voxels;
     public Vector3Int chunkPosition;
 
-    public Voxel GetVoxel(int x, int y, int z)
+    public bool TryGetVoxel(int x, int y, int z, out Voxel voxel)
+    {
+        voxel = default;
+        if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE)
+            return false;
+        voxel = voxels[x + y * SIZE + z * SIZE * SIZE];
+        return true;
+    }
+
+    public void SetVoxel(int x, int y, int z, Voxel voxel)
     {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE)
-            return null;
-        return voxels[x + y * SIZE + z * SIZE * SIZE];
+            return;
+        voxels[x + y * SIZE + z * SIZE * SIZE] = voxel;
     }
 
     public Chunk()
@@ -32,7 +48,7 @@ public sealed class Chunk
         chunkPosition = pos;
         for (int i = 0; i < voxels.Length; i++)
         {
-            voxels[i] = new Voxel();
+            voxels[i].Init();
         }
     }
 }

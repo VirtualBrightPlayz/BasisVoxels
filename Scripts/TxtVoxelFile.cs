@@ -36,10 +36,10 @@ public class TxtVoxelFile
                     if (id == -1)
                         id = 0;
                     // swap y and z
-                    Voxel vox = world.GetVoxel(offset.x + x, offset.y + z, offset.z + y);
-                    if (vox != null)
+                    if (world.TryGetVoxel(offset.x + x, offset.y + z, offset.z + y, out Voxel vox))
                     {
                         vox.Id = (byte)id;
+                        world.SetVoxelWithData(new Vector3Int(offset.x + x, offset.y + z, offset.z + y), vox);
                     }
                 }
             }
@@ -55,8 +55,7 @@ public class TxtVoxelFile
             {
                 for (int z = start.z; z < end.z; z++)
                 {
-                    Voxel vox = world.GetVoxel(x, y, z);
-                    if (vox != null && vox.IsActive)
+                    if (world.TryGetVoxel(x, z, y, out Voxel vox) && vox.IsActive)
                     {
                         Color color = colorLookup[vox.Id];
                         string hex = ColorUtility.ToHtmlStringRGB(color).ToLower();
