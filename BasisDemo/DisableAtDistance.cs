@@ -1,3 +1,4 @@
+using Basis.Scripts.Drivers;
 using UnityEngine;
 
 public class DisableAtDistance : MonoBehaviour
@@ -7,7 +8,9 @@ public class DisableAtDistance : MonoBehaviour
 
     public void Update()
     {
-        Camera cam = Camera.main;
+        if (BasisLocalCameraDriver.Instance == null)
+            return;
+        Camera cam = BasisLocalCameraDriver.Instance.Camera;
         if (cam != null && mesh != null && mesh.chunk != null)
         {
             Vector3Int camPos = VoxelWorld.FloorPosition(cam.transform.position);

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -79,7 +80,8 @@ public partial class BasisDemoVoxels : VoxelWorld
         UpdateTasks();
         UpdateMapGen();
         UpdateTimeCycle();
-        Tick();
+        // if (!tickRunning)
+            // Task.Run(() => Tick());
     }
 
     private void InitLocalPlayer()
@@ -418,7 +420,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, id);
             }
-            QueueUpdateChunks(FloorPosition(block), false);
+            QueueUpdateChunks(FloorPosition(block), true);
         }
     }
 }

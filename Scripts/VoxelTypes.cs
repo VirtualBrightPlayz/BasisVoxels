@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Voxel
+public sealed class Voxel
 {
     public byte Id = 0;
     public Color32 Emit = new Color32(0, 0, 0, 0);
@@ -9,7 +9,7 @@ public class Voxel
     public object UserData = null;
 }
 
-public class Chunk
+public sealed class Chunk
 {
     public const int SIZE = 16;
     public Voxel[] voxels;

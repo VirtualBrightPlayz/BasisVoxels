@@ -191,7 +191,9 @@ public class VoxelMesh : MonoBehaviour
         colors.Clear();
         verts.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
         uvs.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        await Task.Run(AddChunk);
+        Task task = new Task(AddChunk);
+        task.Start();
+        await task;
         // AddChunk();
         Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
         Mesh.MeshData data = array[0];
@@ -247,7 +249,6 @@ public class VoxelMesh : MonoBehaviour
             meshFilter.sharedMesh = mesh;
             meshCollider.sharedMesh = mesh;
         }
-        // List<Material> tempList = new List<Material>();
         Material[] tempList = new Material[trisLookup.Count];
         int i2 = 0;
         foreach (var id in trisLookup.Keys)
@@ -259,7 +260,6 @@ public class VoxelMesh : MonoBehaviour
         }
         meshRenderer.sharedMaterials = tempList;
         isUpdating = false;
-        // return Task.CompletedTask;
     }
 
     public async Task Setup()

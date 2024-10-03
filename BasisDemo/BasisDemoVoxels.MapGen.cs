@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
+using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 
 public partial class BasisDemoVoxels
@@ -20,11 +23,13 @@ public partial class BasisDemoVoxels
     public bool hasMap = false;
 
     private Vector3Int lastPos;
+    private Dictionary<ushort, Vector3Int> playerPositions = new Dictionary<ushort, Vector3Int>();
 
     private async Task TryGenChunk(Vector3Int pos)
     {
-        if (genRunning)
-            return;
+        while (genRunning)
+            await Task.Delay(100);
+            // return;
         genRunning = true;
         List<VoxelMesh> meshes = new List<VoxelMesh>();
         for (int x = -renderDistance; x <= renderDistance; x++)
@@ -39,31 +44,40 @@ public partial class BasisDemoVoxels
                 }
             }
         }
+        Task[] meshTasks = new Task[meshes.Count];
         for (int i = 0; i < meshes.Count; i++)
         {
-            await Task.Run(() =>
+            meshTasks[i] = new Task(j =>
             {
-                GenerateVoxels(meshes[i].chunk);
-            });
+                GenerateVoxels(meshes[(int)j].chunk);
+            }, i);
+            meshTasks[i].Start();
         }
+        await Task.WhenAll(meshTasks);
         for (int i = 0; i < meshes.Count; i++)
         {
-            if (meshes[i].chunk.chunkPosition.y != 0)
-                continue;
-            await Task.Run(() =>
+            meshTasks[i] = new Task(j =>
             {
-                GenerateDecor(meshes[i].chunk);
-            });
+                if (meshes[(int)j].chunk.chunkPosition.y == 0)
+                    GenerateDecor(meshes[(int)j].chunk);
+            }, i);
+            meshTasks[i].Start();
         }
+        await Task.WhenAll(meshTasks);
+        List<Task> tasks = new List<Task>();
         foreach (var chunk in meshes)
         {
-            // chunk.UpdateMesh();
+            // await chunk.UpdateMeshAsync();
+            tasks.Add(chunk.UpdateMeshAsync());
         }
+        /*
         foreach (var chunk in chunks.Values)
         {
             if (chunk.meshRenderer != null && chunk.meshRenderer.enabled)
-                chunk.UpdateMesh();
+                tasks.Add(chunk.UpdateMeshAsync());
         }
+        */
+        await Task.WhenAll(tasks);
         genRunning = false;
     }
 
@@ -159,20 +173,44 @@ public partial class BasisDemoVoxels
 
     public async void UpdateMapGen()
     {
-        // TODO: multiplayer
-        Camera cam = Camera.main;
-        if (cam == null || !IsOwner)
+        if (!IsOwner)
             return;
-        Vector3Int pos = FloorPosition(cam.transform.position);
-        if (lastPos != pos && !genRunning)
+        List<Task> tasks = new List<Task>();
+        foreach (var plr in BasisNetworkManagement.Players)
         {
-            await TryGenChunk(pos);
-            if (chunks.TryGetValue(pos, out VoxelMesh mesh))
+            if (plr.Value.Player is BasisRemotePlayer remote)
             {
-                mesh.UpdateMesh();
+                if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
+                {
+                    Vector3Int playerChunkPos = FloorPosition(ctrl.BoneTransform.position);
+                    playerChunkPos.y = 0;
+                    if (!playerPositions.ContainsKey(plr.Key))
+                    {
+                        playerPositions.Add(plr.Key, playerChunkPos);
+                        tasks.Add(TryGenChunk(playerChunkPos));
+                    }
+                    else if (playerPositions[plr.Key] != playerChunkPos)
+                    {
+                        playerPositions[plr.Key] = playerChunkPos;
+                        tasks.Add(TryGenChunk(playerChunkPos));
+                    }
+                }
             }
-            lastPos = pos;
         }
+        if (BasisLocalCameraDriver.Instance != null && BasisLocalCameraDriver.Instance.Camera != null)
+        {
+            Vector3Int pos = FloorPosition(BasisLocalCameraDriver.Instance.Camera.transform.position);
+            if (lastPos != pos && !genRunning)
+            {
+                tasks.Add(TryGenChunk(pos));
+                // if (chunks.TryGetValue(pos, out VoxelMesh mesh))
+                {
+                    // mesh.UpdateMesh();
+                }
+                lastPos = pos;
+            }
+        }
+        await Task.WhenAll(tasks);
     }
 
     private async Task GenerateMap(bool actually)

@@ -17,7 +17,8 @@ public abstract class VoxelWorld : MonoBehaviour
     public int tickRate = 20;
     public double tickSpeed = 1d;
     public int maxTicks = 60;
-    private double lastTickTime;
+    protected double lastTickTime;
+    protected bool tickRunning = false;
 
     public static Vector3Int RoundPosition(Vector3 pos)
     {
@@ -91,6 +92,9 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public virtual void Tick()
     {
+        if (tickRunning)
+            return;
+        tickRunning = true;
         double rt = Time.unscaledTimeAsDouble;
         int ticks = 0;
         while (rt > lastTickTime)
@@ -105,6 +109,7 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             Debug.LogWarning($"Max ticks reached! ({ticks} ticks)");
         }
+        tickRunning = false;
     }
 
     public virtual void TickWorld(double delta)
