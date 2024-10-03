@@ -13,6 +13,11 @@ using UnityEngine.InputSystem;
 
 public partial class BasisDemoVoxels : VoxelWorld
 {
+    public struct SandVoxelData
+    {
+        public double timeUntilFall;
+    }
+
     private BasisNetworkedPlayer LocalNetworkPlayer;
     [Header("Basis Demo")]
     public List<VoxelType> types = new List<VoxelType>();
@@ -74,11 +79,7 @@ public partial class BasisDemoVoxels : VoxelWorld
         UpdateTasks();
         UpdateMapGen();
         UpdateTimeCycle();
-    }
-
-    private void FixedUpdate()
-    {
-        // TickWorld(Time.fixedDeltaTime);
+        Tick();
     }
 
     private void InitLocalPlayer()
@@ -127,9 +128,47 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
+    public override void TickChunk(double delta, Chunk chunk)
+    {
+        if ((lastPos - chunk.chunkPosition).sqrMagnitude <= renderDistance * renderDistance)
+        {
+            base.TickChunk(delta, chunk);
+        }
+    }
+
     public override void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
     {
         base.TickVoxel(delta, voxelPos, voxel);
+        if (voxel.UserData is SandVoxelData sand)
+        {
+            Voxel downVox = GetVoxel(voxelPos + Vector3Int.down);
+            if (downVox != null && !downVox.IsActive)
+            {
+                sand.timeUntilFall -= delta;
+                if (sand.timeUntilFall <= 0)
+                {
+                    QueueSetVoxel(voxelPos + Vector3Int.down, voxel.Id);
+                    QueueSetVoxel(voxelPos, 0);
+                }
+                else
+                    voxel.UserData = sand;
+            }
+        }
+    }
+
+    public override void SetVoxelData(Voxel vox, Vector3Int pos, byte id)
+    {
+        vox.Id = id;
+        if (types[id].lit)
+            vox.Emit = types[id].litColor;
+        else
+            vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
+        vox.UserData = null;
+        if (types[id].sand)
+            vox.UserData = new SandVoxelData()
+            {
+                timeUntilFall = 0.2d,
+            };
     }
 
     [ContextMenu(nameof(SaveWorld))]
@@ -270,17 +309,6 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     #endregion
 
-    public override void SetVoxel(Vector3Int pos, byte id)
-    {
-        Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
-        if (vox == null)
-            return;
-        vox.Id = id;
-        if (types[id].lit)
-            vox.Emit = types[id].litColor;
-        else
-            vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
-    }
 
     public void ToggleInventoryUI()
     {
@@ -371,7 +399,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, 0);
             }
-            QueueUpdateChunks(FloorPosition(block));
+            QueueUpdateChunks(FloorPosition(block), true);
         }
     }
 
@@ -390,7 +418,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, id);
             }
-            QueueUpdateChunks(FloorPosition(block));
+            QueueUpdateChunks(FloorPosition(block), false);
         }
     }
 }

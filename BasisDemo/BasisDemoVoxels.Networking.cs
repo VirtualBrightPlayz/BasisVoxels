@@ -142,7 +142,7 @@ public partial class BasisDemoVoxels
                 {
                     SetVoxel(msg.pos, msg.id);
                     PlayBlockSoundAt(msg.pos);
-                    QueueUpdateChunks(FloorPosition(msg.pos));
+                    QueueUpdateChunks(FloorPosition(msg.pos), true);
                 }
                 break;
             }

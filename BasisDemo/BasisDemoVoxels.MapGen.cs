@@ -128,14 +128,17 @@ public partial class BasisDemoVoxels
                         if (worldPos.y < 3 && worldPos.y < height)
                         {
                             vox.Id = floorBlockId;
+                            SetVoxel(worldPos, vox.Id);
                         }
                         else if (worldPos.y < height)
                         {
                             vox.Id = (byte)types.IndexOf(biomes[biome].surface);
+                            SetVoxel(worldPos, vox.Id);
                         }
                         else
                         {
                             vox.Id = 0;
+                            SetVoxel(worldPos, vox.Id);
                         }
                     }
                 }

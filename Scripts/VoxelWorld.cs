@@ -12,6 +12,12 @@ public abstract class VoxelWorld : MonoBehaviour
     public int seed = 1337;
     protected bool genRunning = false;
     protected Queue<Vector3Int> chunkUpdateQueue = new Queue<Vector3Int>();
+    protected Queue<(Vector3Int, byte)> voxelUpdateQueue = new Queue<(Vector3Int, byte)>();
+
+    public int tickRate = 20;
+    public double tickSpeed = 1d;
+    public int maxTicks = 60;
+    private double lastTickTime;
 
     public static Vector3Int RoundPosition(Vector3 pos)
     {
@@ -83,11 +89,34 @@ public abstract class VoxelWorld : MonoBehaviour
         }
     }
 
+    public virtual void Tick()
+    {
+        double rt = Time.unscaledTimeAsDouble;
+        int ticks = 0;
+        while (rt > lastTickTime)
+        {
+            double delta = tickSpeed / tickRate;
+            if (ticks < maxTicks)
+                TickWorld(delta);
+            lastTickTime += 1d / tickRate;
+            ticks++;
+        }
+        if (ticks >= maxTicks)
+        {
+            Debug.LogWarning($"Max ticks reached! ({ticks} ticks)");
+        }
+    }
+
     public virtual void TickWorld(double delta)
     {
         foreach (var chunk in chunks.Values)
         {
             TickChunk(delta, chunk.chunk);
+        }
+        while (voxelUpdateQueue.TryDequeue(out (Vector3Int pos, byte id) voxelData))
+        {
+            SetVoxel(voxelData.pos, voxelData.id);
+            QueueUpdateChunks(FloorPosition(voxelData.pos), false);
         }
     }
 
@@ -106,21 +135,34 @@ public abstract class VoxelWorld : MonoBehaviour
     {
     }
 
-    public void QueueUpdateChunks(Vector3Int chunkPos)
+    public void QueueUpdateChunks(Vector3Int chunkPos, bool now)
     {
-        for (int x = -1; x <= 1; x++)
-            for (int y = -1; y <= 1; y++)
-                for (int z = -1; z <= 1; z++)
-                    if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                        chunk.UpdateMesh();
+        if (now)
+            for (int x = -1; x <= 1; x++)
+                for (int y = -1; y <= 1; y++)
+                    for (int z = -1; z <= 1; z++)
+                        if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
+                            chunk.UpdateMesh();
+        if (chunkUpdateQueue.Contains(chunkPos))
+            return;
         chunkUpdateQueue.Enqueue(chunkPos);
     }
 
-    public virtual void SetVoxel(Vector3Int pos, byte id)
+    public void QueueSetVoxel(Vector3Int pos, byte id)
+    {
+        voxelUpdateQueue.Enqueue((pos, id));
+    }
+
+    public void SetVoxel(Vector3Int pos, byte id)
     {
         Voxel vox = GetVoxel(pos.x, pos.y, pos.z);
         if (vox == null)
             return;
+        SetVoxelData(vox, pos, id);
+    }
+
+    public virtual void SetVoxelData(Voxel vox, Vector3Int pos, byte id)
+    {
         vox.Id = id;
     }
 

@@ -19,3 +19,5 @@ MonoBehaviour:
     serializedVersion: 2
     rgba: 285212671
   showInMenu: 1
+  sand: 1
+  liquid: 0
