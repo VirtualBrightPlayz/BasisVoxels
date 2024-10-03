@@ -26,6 +26,6 @@ public partial class BasisDemoVoxels
         sun.intensity = amount;
         RenderSettings.fogColor = Color.gray * amount;
         amount = Mathf.Max(minAmbientLight, amount);
-        RenderSettings.ambientIntensity = amount;
+        RenderSettings.ambientIntensity = amount > minAmbientLight ? 1f : minAmbientLight;
     }
 }
