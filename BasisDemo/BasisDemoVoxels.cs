@@ -178,11 +178,14 @@ public partial class BasisDemoVoxels : VoxelWorld
             vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
         vox.UserData = null;
         if (types[vox.Id].sand)
+        {
+            bool falling = TryGetVoxel(pos + Vector3Int.down, out Voxel v) && !v.IsActive;
             vox.UserData = new SandVoxelData()
             {
-                isFalling = false,
-                timeUntilFall = 0.75d,
+                isFalling = falling,
+                timeUntilFall = 0.1d,
             };
+        }
         return vox;
     }
 
