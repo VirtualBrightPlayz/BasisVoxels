@@ -226,7 +226,7 @@ public partial class BasisDemoVoxels
         if (actually)
         {
             await TryGenChunk(Vector3Int.zero);
-            if (genOnStart)
+            if (genOnStart && BasisLocalPlayer.Instance != null)
                 BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * renderDistance, Quaternion.identity);
         }
     }

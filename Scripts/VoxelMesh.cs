@@ -13,6 +13,7 @@ using UnityEngine.Rendering;
 public class VoxelMesh : MonoBehaviour
 {
     private List<Vector3> verts = new List<Vector3>();
+    private List<Vector3> normals = new List<Vector3>();
     private Dictionary<int, List<int>> trisLookup = new Dictionary<int, List<int>>();
     private List<Vector2> uvs = new List<Vector2>();
     private List<Color32> colors = new List<Color32>();
@@ -84,11 +85,13 @@ public class VoxelMesh : MonoBehaviour
 
     private void AddFaceData(int x, int y, int z, int faceIndex, Voxel vox, Color32 light)
     {
+        Vector3 normal;
         switch (faceIndex)
         {
             default:
                 return;
             case 0: // up
+                normal = Vector3.up;
                 verts.Add(new Vector3(x, y + 1, z));
                 verts.Add(new Vector3(x, y + 1, z + 1));
                 verts.Add(new Vector3(x + 1, y + 1, z + 1));
@@ -99,6 +102,7 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(0, 1));
                 break;
             case 1: // down
+                normal = Vector3.down;
                 verts.Add(new Vector3(x, y, z));
                 verts.Add(new Vector3(x + 1, y, z));
                 verts.Add(new Vector3(x + 1, y, z + 1));
@@ -109,6 +113,7 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(1, 0));
                 break;
             case 2: // left
+                normal = Vector3.left;
                 verts.Add(new Vector3(x, y, z));
                 verts.Add(new Vector3(x, y, z + 1));
                 verts.Add(new Vector3(x, y + 1, z + 1));
@@ -119,6 +124,7 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(0, 1));
                 break;
             case 3: // right
+                normal = Vector3.right;
                 verts.Add(new Vector3(x + 1, y, z + 1));
                 verts.Add(new Vector3(x + 1, y, z));
                 verts.Add(new Vector3(x + 1, y + 1, z));
@@ -129,6 +135,7 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(0, 1));
                 break;
             case 4: // front
+                normal = Vector3.forward;
                 verts.Add(new Vector3(x, y, z + 1));
                 verts.Add(new Vector3(x + 1, y, z + 1));
                 verts.Add(new Vector3(x + 1, y + 1, z + 1));
@@ -139,6 +146,7 @@ public class VoxelMesh : MonoBehaviour
                 uvs.Add(new Vector2(0, 1));
                 break;
             case 5: // back
+                normal = Vector3.back;
                 verts.Add(new Vector3(x + 1, y, z));
                 verts.Add(new Vector3(x, y, z));
                 verts.Add(new Vector3(x, y + 1, z));
@@ -153,6 +161,10 @@ public class VoxelMesh : MonoBehaviour
         colors.Add(light);
         colors.Add(light);
         colors.Add(light);
+        normals.Add(normal);
+        normals.Add(normal);
+        normals.Add(normal);
+        normals.Add(normal);
         AddTriangles(vox.Id);
     }
 
@@ -192,6 +204,7 @@ public class VoxelMesh : MonoBehaviour
         shouldUpdate = Mathf.Max(shouldUpdate - 1, 0);
         isUpdating = true;
         verts.Clear();
+        normals.Clear();
         trisLookup.Clear();
         uvs.Clear();
         colors.Clear();
@@ -217,11 +230,14 @@ public class VoxelMesh : MonoBehaviour
                 indCount += trisLookup[id].Count;
             data.SetIndexBufferParams(indCount, IndexFormat.UInt32);
             NativeArray<ChunkVertex> vertex = data.GetVertexData<ChunkVertex>();
+            Bounds bounds = new Bounds();
             for (int i = 0; i < verts.Count; i++)
             {
+                bounds.Encapsulate(verts[i]);
                 vertex[i] = new ChunkVertex()
                 {
                     position = verts[i],
+                    normal = normals[i],
                     uv = uvs[i],
                     color = colors[i],
                 };
@@ -236,13 +252,16 @@ public class VoxelMesh : MonoBehaviour
                 {
                     index[j++] = (uint)trisLookup[id][i];
                 }
-                data.SetSubMesh(k++, new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count));
+                SubMeshDescriptor desc = new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count);
+                desc.bounds = bounds;
+                data.SetSubMesh(k++, desc);
             }
         });
         Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
-        mesh.RecalculateBounds();
-        mesh.RecalculateNormals();
-        mesh.RecalculateTangents();
+        mesh.bounds = new Bounds(Vector3.one * Chunk.SIZE * 0.5f, Vector3.one * Chunk.SIZE);
+        // mesh.RecalculateBounds();
+        // mesh.RecalculateNormals();
+        // mesh.RecalculateTangents();
         if (verts.Count == 0)
             meshFilter.sharedMesh = null;
         else

@@ -510,7 +510,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3483086b3dc92194a8c2a327b1d336b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  distance: 5
+  distance: 8
   mesh: {fileID: 427715546}
 --- !u!1 &1613010383
 GameObject:

@@ -171,10 +171,6 @@ public partial class BasisDemoVoxels
 
     private async void OnNetSeed()
     {
-        // foreach (var pos in chunks.Keys)
-            // await UpdateChunks(pos, false, true);
-        // foreach (var pos in chunks.Values)
-            // pos.UpdateMesh();
         await GenerateMap(false);
     }
 
