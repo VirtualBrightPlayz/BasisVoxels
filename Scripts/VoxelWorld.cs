@@ -58,6 +58,14 @@ public abstract class VoxelWorld : MonoBehaviour
         return vox;
     }
 
+    public Color32 GetLightOrZero(Chunk chunk, int x, int y, int z)
+    {
+        Vector3Int pos = new Vector3Int(x, y, z) + UnroundPosition(chunk.chunkPosition);
+        if (TryGetVoxelLight(pos, out Voxel _, out Color32 light))
+            return light;
+        return new Color32(0, 0, 0, 0);
+    }
+
     public bool TryGetVoxel(int x, int y, int z, out Voxel voxel)
     {
         return TryGetVoxel(new Vector3Int(x, y, z), out voxel);
@@ -82,6 +90,19 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
             return chunk.chunk.TryGetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, out voxel);
+        }
+        return false;
+    }
+
+    public bool TryGetVoxelLight(Vector3Int pos, out Voxel voxel, out Color32 light)
+    {
+        voxel = default;
+        light = default;
+        Vector3Int chunkPos = FloorPosition(pos);
+        if (chunks.TryGetValue(chunkPos, out VoxelMesh chunk) && chunk.chunk != null)
+        {
+            Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
+            return chunk.chunk.TryGetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, out voxel) && chunk.chunk.TryGetLight(voxelPos.x, voxelPos.y, voxelPos.z, out light);
         }
         return false;
     }
@@ -190,6 +211,17 @@ public abstract class VoxelWorld : MonoBehaviour
         }
     }
 
+    public void SetVoxelLightRaw(Vector3Int pos, Voxel voxel, Color32 light)
+    {
+        Vector3Int chunkPos = FloorPosition(pos);
+        if (chunks.TryGetValue(chunkPos, out VoxelMesh mesh) && mesh.chunk != null)
+        {
+            Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
+            mesh.chunk.SetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, voxel);
+            mesh.chunk.SetLight(voxelPos.x, voxelPos.y, voxelPos.z, light);
+        }
+    }
+
     public void SetVoxelWithData(Vector3Int pos, Voxel voxel)
     {
         Vector3Int chunkPos = FloorPosition(pos);
@@ -229,7 +261,7 @@ public abstract class VoxelWorld : MonoBehaviour
                                     {
                                         if (chunk.chunk.TryGetVoxel(x2, y2, z2, out Voxel vox))
                                         {
-                                            vox.Light = new Color32(0, 0, 0, 0);
+                                            // vox.Light = new Color32(0, 0, 0, 0);
                                             if (vox.Emit.a == 0)
                                             {
                                                 chunk.chunk.SetVoxel(x2, y2, z2, vox);
@@ -256,15 +288,19 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             (Vector3Int pos2, Color32 col) = lights.Dequeue();
             ProcessLight(pos2);
-            await Task.Run(() => UpdateLightmap(pos2, col));
+            await Task.Run(() => UpdateVoxelLightmap(pos2, col));
         }
-        if (updateMeshes)
         {
             for (int x = -area; x <= area; x++)
                 for (int y = -area; y <= area; y++)
                     for (int z = -area; z <= area; z++)
                         if (chunks.TryGetValue(chunkPos + new Vector3Int(x, y, z), out VoxelMesh chunk))
-                            chunk.QueueUpdateMesh();
+                        {
+                            if (updateLightmap)
+                                chunk.chunk.UpdateLightBuffers();
+                            if (updateMeshes)
+                                chunk.QueueUpdateMesh();
+                        }
         }
         genRunning = false;
     }
@@ -304,7 +340,7 @@ public abstract class VoxelWorld : MonoBehaviour
 
     #region Lighting
 
-    public void UpdateLightmap(Vector3Int voxPos, Color32 baseLight)
+    public void UpdateVoxelLightmap(Vector3Int voxPos, Color32 baseLight)
     {
         Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
         queue.Enqueue((voxPos, baseLight));
@@ -315,11 +351,11 @@ public abstract class VoxelWorld : MonoBehaviour
             if (list.Contains(pos) || light.a <= 0)
                 continue;
             list.Add(pos);
-            if (!TryGetVoxel(pos, out Voxel vox))
+            if (!TryGetVoxelLight(pos, out Voxel vox, out Color32 voxLight))
                 continue;
             if (vox.IsActive && pos != voxPos)
                 continue;
-            if (vox.Light.a > light.a)
+            if (voxLight.a > light.a)
                 // if (vox.Light.r > light.r || vox.Light.g > light.g || vox.Light.b > light.b)
                     continue;
             float amount = (float)light.a / baseLight.a;
@@ -329,12 +365,12 @@ public abstract class VoxelWorld : MonoBehaviour
             // vox.Light.r = (byte)Mathf.Clamp(vox.Light.r + light.r, 0, 255);
             // vox.Light.g = (byte)Mathf.Clamp(vox.Light.g + light.g, 0, 255);
             // vox.Light.b = (byte)Mathf.Clamp(vox.Light.b + light.b, 0, 255);
-            vox.Light.r = light.r;
-            vox.Light.g = light.g;
-            vox.Light.b = light.b;
-            vox.Light.a = light.a;
+            voxLight.r = light.r;
+            voxLight.g = light.g;
+            voxLight.b = light.b;
+            voxLight.a = light.a;
             light.a--;
-            SetVoxelRaw(pos, vox);
+            SetVoxelLightRaw(pos, vox, voxLight);
             if (!list.Contains(pos + Vector3Int.up))
                 queue.Enqueue((pos + Vector3Int.up, light));
             if (!list.Contains(pos + Vector3Int.down))

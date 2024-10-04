@@ -66,12 +66,12 @@ public class VoxelMesh : MonoBehaviour
             visibleFaces[4] = world.IsFaceVisible(chunk, x, y, z + 1); // forward
             visibleFaces[5] = world.IsFaceVisible(chunk, x, y, z - 1); // back
 
-            lightFaces[0] = world.GetVoxelOrDefault(chunk, x, y + 1, z).Light;
-            lightFaces[1] = world.GetVoxelOrDefault(chunk, x, y - 1, z).Light;
-            lightFaces[2] = world.GetVoxelOrDefault(chunk, x - 1, y, z).Light;
-            lightFaces[3] = world.GetVoxelOrDefault(chunk, x + 1, y, z).Light;
-            lightFaces[4] = world.GetVoxelOrDefault(chunk, x, y, z + 1).Light;
-            lightFaces[5] = world.GetVoxelOrDefault(chunk, x, y, z - 1).Light;
+            lightFaces[0] = world.GetLightOrZero(chunk, x, y + 1, z);
+            lightFaces[1] = world.GetLightOrZero(chunk, x, y - 1, z);
+            lightFaces[2] = world.GetLightOrZero(chunk, x - 1, y, z);
+            lightFaces[3] = world.GetLightOrZero(chunk, x + 1, y, z);
+            lightFaces[4] = world.GetLightOrZero(chunk, x, y, z + 1);
+            lightFaces[5] = world.GetLightOrZero(chunk, x, y, z - 1);
 
             for (int i = 0; i < 6; i++)
             {
