@@ -87,8 +87,6 @@ public partial class BasisDemoVoxels : VoxelWorld
             voxelsToTick.Clear();
             voxelUpdateQueue.Clear();
         }
-        // if (!tickRunning)
-            // Task.Run(() => Tick());
     }
 
     private void InitLocalPlayer()

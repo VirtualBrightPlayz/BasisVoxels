@@ -280,7 +280,6 @@ public abstract class VoxelWorld : MonoBehaviour
                                     {
                                         if (chunk.chunk.TryGetVoxel(x2, y2, z2, out Voxel vox))
                                         {
-                                            // vox.Light = new Color32(0, 0, 0, 0);
                                             if (vox.Emit.a == 0)
                                             {
                                                 chunk.chunk.SetVoxel(x2, y2, z2, vox);
@@ -375,19 +374,12 @@ public abstract class VoxelWorld : MonoBehaviour
             if (vox.IsActive && pos != voxPos)
                 continue;
             if (voxLight.a > light.a)
-                // if (vox.Light.r > light.r || vox.Light.g > light.g || vox.Light.b > light.b)
-                    continue;
+                continue;
             float amount = (float)light.a / baseLight.a;
             light.r = (byte)(baseLight.r * amount);
             light.g = (byte)(baseLight.g * amount);
             light.b = (byte)(baseLight.b * amount);
-            // vox.Light.r = (byte)Mathf.Clamp(vox.Light.r + light.r, 0, 255);
-            // vox.Light.g = (byte)Mathf.Clamp(vox.Light.g + light.g, 0, 255);
-            // vox.Light.b = (byte)Mathf.Clamp(vox.Light.b + light.b, 0, 255);
-            voxLight.r = light.r;
-            voxLight.g = light.g;
-            voxLight.b = light.b;
-            voxLight.a = light.a;
+            voxLight = light;
             light.a--;
             SetVoxelLightRaw(pos, vox, voxLight);
             if (!list.Contains(pos + Vector3Int.up))
