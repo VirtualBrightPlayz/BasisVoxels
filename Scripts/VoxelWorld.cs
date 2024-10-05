@@ -115,17 +115,17 @@ public abstract class VoxelWorld : MonoBehaviour
         return false;
     }
 
-    public bool IsFaceVisible(Chunk chunk, int x, int y, int z)
+    public bool IsFaceVisible(Chunk chunk, int x, int y, int z, byte layer)
     {
         Vector3Int position = UnroundPosition(chunk.chunkPosition);
-        return IsFaceVisible(position.x + x, position.y + y, position.z + z);
+        return IsFaceVisible(position.x + x, position.y + y, position.z + z, layer);
     }
 
-    public bool IsFaceVisible(int x, int y, int z)
+    public bool IsFaceVisible(int x, int y, int z, byte layer)
     {
         if (!TryGetVoxel(x, y, z, out Voxel vox))
             return true;
-        return !vox.IsActive;
+        return !vox.IsActive || layer != vox.Layer;
     }
 
     public virtual void UpdateTasks()

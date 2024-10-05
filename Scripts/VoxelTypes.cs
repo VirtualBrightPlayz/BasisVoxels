@@ -6,11 +6,13 @@ public struct Voxel
     public byte Id;
     public Color32 Emit;
     public bool IsActive => Id != 0;
+    public byte Layer;
     public object UserData;
 
     public void Init()
     {
         Id = 0;
+        Layer = 0;
         Emit = new Color32(0, 0, 0, 0);
         UserData = null;
     }

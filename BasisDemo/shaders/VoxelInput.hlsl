@@ -6,6 +6,7 @@
 
 CBUFFER_START(UnityPerMaterial)
     float4 _BaseMap_ST;
+    float _AlphaClip;
 CBUFFER_END
 
 #endif

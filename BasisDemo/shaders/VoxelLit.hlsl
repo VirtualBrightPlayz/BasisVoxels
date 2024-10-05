@@ -85,15 +85,19 @@ void frag(
     #endif
 
     Light light = GetMainLight(IN.shadowCoords);
-    float3 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy).rgb;
+    float4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy);
+    if (_AlphaClip)
+    {
+        clip(color.a - 0.5);
+    }
     float3 ambient = SampleSH(IN.normalWS);
     float3 lighting = LightingLambert(light.color, light.direction, IN.normalWS) * light.shadowAttenuation;
-    float3 finalColor = color * (lighting + ambient + IN.color.rgb);
+    float3 finalColor = color.rgb * (lighting + ambient + IN.color.rgb);
     half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, -IN.viewDirWS));
     half3 envColor = DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
     float3 final = MixFog(finalColor, IN.uv0FogCoord.z);
     // float3 final = MixFogColor(finalColor, envColor, IN.uv0FogCoord.z);
-    outColor = float4(final, 1);
+    outColor = float4(final, color.a);
 
 #ifdef _WRITE_RENDERING_LAYERS
     uint renderingLayers = GetMeshRenderingLayer();

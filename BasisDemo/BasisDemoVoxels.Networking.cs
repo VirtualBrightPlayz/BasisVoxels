@@ -188,6 +188,7 @@ public partial class BasisDemoVoxels
             }
             else
                 mesh.chunk.voxels[i].Emit = new Color32(0, 0, 0, 0);
+            mesh.chunk.voxels[i].Layer = types[msg.voxels[i]].layer;
         }
         QueueUpdateChunks(msg.pos, false);
     }

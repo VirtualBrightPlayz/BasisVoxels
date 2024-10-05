@@ -59,12 +59,12 @@ public class VoxelMesh : MonoBehaviour
     {
         if (chunk.TryGetVoxel(x, y, z, out Voxel vox) && vox.IsActive)
         {
-            visibleFaces[0] = world.IsFaceVisible(chunk, x, y + 1, z); // up
-            visibleFaces[1] = world.IsFaceVisible(chunk, x, y - 1, z); // down
-            visibleFaces[2] = world.IsFaceVisible(chunk, x - 1, y, z); // left
-            visibleFaces[3] = world.IsFaceVisible(chunk, x + 1, y, z); // right
-            visibleFaces[4] = world.IsFaceVisible(chunk, x, y, z + 1); // forward
-            visibleFaces[5] = world.IsFaceVisible(chunk, x, y, z - 1); // back
+            visibleFaces[0] = world.IsFaceVisible(chunk, x, y + 1, z, vox.Layer); // up
+            visibleFaces[1] = world.IsFaceVisible(chunk, x, y - 1, z, vox.Layer); // down
+            visibleFaces[2] = world.IsFaceVisible(chunk, x - 1, y, z, vox.Layer); // left
+            visibleFaces[3] = world.IsFaceVisible(chunk, x + 1, y, z, vox.Layer); // right
+            visibleFaces[4] = world.IsFaceVisible(chunk, x, y, z + 1, vox.Layer); // forward
+            visibleFaces[5] = world.IsFaceVisible(chunk, x, y, z - 1, vox.Layer); // back
 
             lightFaces[0] = world.GetVisibleLightOrZero(chunk, x, y + 1, z);
             lightFaces[1] = world.GetVisibleLightOrZero(chunk, x, y - 1, z);

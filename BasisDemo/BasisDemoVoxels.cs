@@ -197,6 +197,7 @@ public partial class BasisDemoVoxels : VoxelWorld
             vox.Emit = types[vox.Id].litColor;
         else
             vox.Emit = new Color32(0, 0, 0, vox.Emit.a);
+        vox.Layer = types[vox.Id].layer;
         vox.UserData = null;
         if (types[vox.Id].sand)
         {

@@ -3,6 +3,11 @@ Shader "VoxelShader"
     Properties
     {
         [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
+        
+        _SrcBlend("__src", Int) = 1.0
+        _DstBlend("__dst", Int) = 0.0
+        _ZWrite("__zw", Int) = 1.0
+        [ToggleUI] _AlphaClip("__clip", Float) = 0.0
 
         [ToggleOff] _SpecularHighlights("Specular Highlights", Float) = 1.0
         [ToggleOff] _EnvironmentReflections("Environment Reflections", Float) = 1.0
@@ -22,8 +27,9 @@ Shader "VoxelShader"
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForwardOnly" }
 
-            ZWrite On
+            ZWrite [_ZWrite]
             ZTest LEqual
+            Blend [_SrcBlend] [_DstBlend], [_SrcBlend] [_DstBlend]
 
             HLSLPROGRAM
             #pragma target 2.0
@@ -80,7 +86,7 @@ Shader "VoxelShader"
 
             // -------------------------------------
             // Render State Commands
-            ZWrite On
+            ZWrite [_ZWrite]
             ColorMask R
 
             HLSLPROGRAM
@@ -122,7 +128,7 @@ Shader "VoxelShader"
 
             // -------------------------------------
             // Render State Commands
-            ZWrite On
+            ZWrite [_ZWrite]
 
             HLSLPROGRAM
             #pragma target 2.0
@@ -159,7 +165,7 @@ Shader "VoxelShader"
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
 
-            ZWrite On
+            ZWrite [_ZWrite]
             ZTest LEqual
             ColorMask 0
 

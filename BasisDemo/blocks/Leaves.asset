@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc94b2b007c79e74c86f57887b08d811, type: 3}
-  m_Name: Grass
+  m_Name: Leaves
   m_EditorClassIdentifier: 
-  material: {fileID: 2100000, guid: 246f96eef53fc1147925a15f8f2dc48c, type: 2}
-  htmlColor: 00dd00
+  material: {fileID: 2100000, guid: 721bdd5101965d9459845f2abcd0519d, type: 2}
+  htmlColor: 00ff00
   lit: 0
   litColor:
     serializedVersion: 2
     rgba: 285212671
   showInMenu: 1
-  layer: 0
+  layer: 1
   sand: 0
   liquid: 0
