@@ -49,6 +49,15 @@ public sealed class Chunk
         return true;
     }
 
+    public bool TryGetVisibleLight(int x, int y, int z, out Color32 light)
+    {
+        light = default;
+        if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE)
+            return false;
+        light = visibleLights[x + y * SIZE + z * SIZE * SIZE];
+        return true;
+    }
+
     public void SetLight(int x, int y, int z, Color32 light)
     {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE)
@@ -59,6 +68,7 @@ public sealed class Chunk
     public void UpdateLightBuffers()
     {
         Array.Copy(lights, visibleLights, visibleLights.Length);
+        Array.Fill(lights, new Color32(0, 0, 0, 0));
     }
 
     public Chunk()

@@ -58,11 +58,18 @@ public abstract class VoxelWorld : MonoBehaviour
         return vox;
     }
 
-    public Color32 GetLightOrZero(Chunk chunk, int x, int y, int z)
+    public Color32 GetVisibleLightOrZero(Chunk chunk, int x, int y, int z)
     {
         Vector3Int pos = new Vector3Int(x, y, z) + UnroundPosition(chunk.chunkPosition);
-        if (TryGetVoxelLight(pos, out Voxel _, out Color32 light))
-            return light;
+        Vector3Int chunkPos = FloorPosition(pos);
+        if (chunks.TryGetValue(chunkPos, out VoxelMesh mesh) && mesh.chunk != null)
+        {
+            Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
+            if (mesh.chunk.TryGetVisibleLight(voxelPos.x, voxelPos.y, voxelPos.z, out Color32 light))
+                return light;
+        }
+        // if (TryGetVoxelLight(pos, out Voxel _, out Color32 light))
+            // return light;
         return new Color32(0, 0, 0, 0);
     }
 
