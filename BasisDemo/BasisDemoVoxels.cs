@@ -16,7 +16,6 @@ public partial class BasisDemoVoxels : VoxelWorld
 {
     public struct SandVoxelData
     {
-        public bool isFalling;
         public double timeUntilFall;
     }
 
@@ -81,7 +80,13 @@ public partial class BasisDemoVoxels : VoxelWorld
         UpdateTasks();
         UpdateMapGen();
         UpdateTimeCycle();
-        // Tick();
+        if (IsOwner)
+            Tick();
+        else
+        {
+            voxelsToTick.Clear();
+            voxelUpdateQueue.Clear();
+        }
         // if (!tickRunning)
             // Task.Run(() => Tick());
     }
@@ -139,20 +144,37 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
-    public override void TickChunk(double delta, Chunk chunk)
+    public override void TickWorld(double delta)
     {
-        float dist = renderDistance * 0.5f;
-        if (((Vector3)lastPos - chunk.chunkPosition).sqrMagnitude <= dist * dist)
+        Vector3Int[] queue = voxelsToTick.ToArray();
+        voxelsToTick.Clear();
+        for (int i = 0; i < queue.Length; i++)
         {
-            base.TickChunk(delta, chunk);
+            Vector3Int voxelPos = queue[i];
+            if (TryGetVoxel(voxelPos, out Voxel voxel))
+            {
+                TickVoxel(delta, voxelPos, voxel);
+            }
+        }
+        while (voxelUpdateQueue.TryDequeue(out (Vector3Int pos, byte id) voxelData))
+        {
+            if (TryGetVoxel(voxelData.pos, out Voxel voxel))
+            {
+                voxel.Id = voxelData.id;
+                SetVoxelWithData(voxelData.pos, voxel);
+                QueueTickVoxelArea(voxelData.pos);
+                SendVoxel(voxelData.pos, voxel.Id);
+                QueueUpdateChunks(FloorPosition(voxelData.pos), false);
+            }
         }
     }
 
     public override void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
     {
         base.TickVoxel(delta, voxelPos, voxel);
-        if (voxel.UserData is SandVoxelData sand && sand.isFalling)
+        if (types[voxel.Id].sand)
         {
+            SandVoxelData sand = (SandVoxelData)voxel.UserData;
             if (TryGetVoxel(voxelPos + Vector3Int.down, out Voxel downVox) && !downVox.IsActive)
             {
                 sand.timeUntilFall -= delta;
@@ -165,6 +187,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 {
                     voxel.UserData = sand;
                     SetVoxelRaw(voxelPos, voxel);
+                    QueueTickVoxel(voxelPos);
                 }
             }
         }
@@ -179,11 +202,9 @@ public partial class BasisDemoVoxels : VoxelWorld
         vox.UserData = null;
         if (types[vox.Id].sand)
         {
-            bool falling = TryGetVoxel(pos + Vector3Int.down, out Voxel v) && !v.IsActive;
             vox.UserData = new SandVoxelData()
             {
-                isFalling = falling,
-                timeUntilFall = 0.1d,
+                timeUntilFall = 0.2d,
             };
         }
         return vox;
@@ -414,6 +435,7 @@ public partial class BasisDemoVoxels : VoxelWorld
             {
                 vox.Id = 0;
                 SetVoxelWithData(pos, vox);
+                QueueTickVoxelArea(pos);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, 0);
             }
@@ -433,6 +455,7 @@ public partial class BasisDemoVoxels : VoxelWorld
             {
                 vox.Id = id;
                 SetVoxelWithData(pos, vox);
+                QueueTickVoxelArea(pos);
                 PlayBlockSoundAt(pos);
                 SendVoxel(pos, id);
             }

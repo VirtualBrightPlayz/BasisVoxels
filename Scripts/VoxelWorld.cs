@@ -12,6 +12,7 @@ public abstract class VoxelWorld : MonoBehaviour
     public int seed = 1337;
     protected bool genRunning = false;
     protected Queue<Vector3Int> chunkUpdateQueue = new Queue<Vector3Int>();
+    protected Queue<Vector3Int> voxelsToTick = new Queue<Vector3Int>();
     protected Queue<(Vector3Int, byte)> voxelUpdateQueue = new Queue<(Vector3Int, byte)>();
 
     public int tickRate = 20;
@@ -140,7 +141,7 @@ public abstract class VoxelWorld : MonoBehaviour
         if (tickRunning)
             return;
         tickRunning = true;
-        double rt = Time.unscaledTimeAsDouble;
+        double rt = Time.timeAsDouble;
         int ticks = 0;
         while (rt > lastTickTime)
         {
@@ -159,9 +160,15 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public virtual void TickWorld(double delta)
     {
-        foreach (var chunk in chunks.Values)
+        Vector3Int[] queue = voxelsToTick.ToArray();
+        voxelsToTick.Clear();
+        for (int i = 0; i < queue.Length; i++)
         {
-            TickChunk(delta, chunk.chunk);
+            Vector3Int voxelPos = queue[i];
+            if (TryGetVoxel(voxelPos, out Voxel voxel))
+            {
+                TickVoxel(delta, voxelPos, voxel);
+            }
         }
         while (voxelUpdateQueue.TryDequeue(out (Vector3Int pos, byte id) voxelData))
         {
@@ -169,21 +176,10 @@ public abstract class VoxelWorld : MonoBehaviour
             {
                 voxel.Id = voxelData.id;
                 SetVoxelWithData(voxelData.pos, voxel);
+                QueueTickVoxelArea(voxelData.pos);
                 QueueUpdateChunks(FloorPosition(voxelData.pos), false);
             }
         }
-    }
-
-    public virtual void TickChunk(double delta, Chunk chunk)
-    {
-        Vector3Int chunkPos = UnroundPosition(chunk.chunkPosition);
-        for (int x = 0; x < Chunk.SIZE; x++)
-            for (int y = 0; y < Chunk.SIZE; y++)
-                for (int z = 0; z < Chunk.SIZE; z++)
-                {
-                    if (chunk.TryGetVoxel(x, y, z, out Voxel voxel))
-                        TickVoxel(delta, chunkPos + new Vector3Int(x, y, z), voxel);
-                }
     }
 
     public virtual void TickVoxel(double delta, Vector3Int voxelPos, Voxel voxel)
@@ -206,6 +202,22 @@ public abstract class VoxelWorld : MonoBehaviour
     public void QueueSetVoxel(Vector3Int pos, byte id)
     {
         voxelUpdateQueue.Enqueue((pos, id));
+    }
+
+    public void QueueTickVoxel(Vector3Int pos)
+    {
+        voxelsToTick.Enqueue(pos);
+    }
+
+    public void QueueTickVoxelArea(Vector3Int pos)
+    {
+        voxelsToTick.Enqueue(pos);
+        voxelsToTick.Enqueue(pos + Vector3Int.up);
+        voxelsToTick.Enqueue(pos + Vector3Int.down);
+        voxelsToTick.Enqueue(pos + Vector3Int.left);
+        voxelsToTick.Enqueue(pos + Vector3Int.right);
+        voxelsToTick.Enqueue(pos + Vector3Int.forward);
+        voxelsToTick.Enqueue(pos + Vector3Int.back);
     }
 
     public void SetVoxelRaw(Vector3Int pos, Voxel voxel)

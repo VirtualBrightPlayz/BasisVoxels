@@ -145,6 +145,7 @@ public partial class BasisDemoVoxels
                 {
                     vox.Id = msg.id;
                     SetVoxelWithData(msg.pos, vox);
+                    QueueTickVoxelArea(msg.pos);
                     PlayBlockSoundAt(msg.pos);
                     QueueUpdateChunks(FloorPosition(msg.pos), true);
                 }
