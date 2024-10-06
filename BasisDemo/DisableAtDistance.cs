@@ -17,7 +17,7 @@ public class DisableAtDistance : MonoBehaviour
             Vector3Int chunkPos = mesh.chunk.chunkPosition;
             camPos.y = 0;
             chunkPos.y = 0;
-            mesh.meshRenderer.enabled = (camPos - chunkPos).sqrMagnitude <= distance * distance;
+            // mesh.meshCollider.enabled = mesh.meshRenderer.enabled = (camPos - chunkPos).sqrMagnitude <= distance * distance;
         }
     }
 }

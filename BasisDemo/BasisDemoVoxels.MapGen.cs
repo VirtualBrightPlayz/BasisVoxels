@@ -34,14 +34,14 @@ public partial class BasisDemoVoxels
         // if (mapGenRunning)
             // return;
         mapGenRunning = true;
-        List<VoxelMesh> meshes = new List<VoxelMesh>();
+        List<Chunk> meshes = new List<Chunk>();
         for (int x = -renderDistance; x <= renderDistance; x++)
         {
             for (int y = 0; y <= renderDistance; y++)
             {
                 for (int z = -renderDistance; z <= renderDistance; z++)
                 {
-                    VoxelMesh mesh = SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
+                    Chunk mesh = SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
                     if (mesh != null)
                         meshes.Add(mesh);
                 }
@@ -52,7 +52,7 @@ public partial class BasisDemoVoxels
         {
             meshTasks[i] = new Task(j =>
             {
-                GenerateVoxels(meshes[(int)j].chunk);
+                GenerateVoxels(meshes[(int)j]);
             }, i);
             meshTasks[i].Start();
         }
@@ -61,8 +61,8 @@ public partial class BasisDemoVoxels
         {
             meshTasks[i] = new Task(j =>
             {
-                if (meshes[(int)j].chunk.chunkPosition.y == 0)
-                    GenerateDecor(meshes[(int)j].chunk);
+                if (meshes[(int)j].chunkPosition.y == 0)
+                    GenerateDecor(meshes[(int)j]);
             }, i);
             meshTasks[i].Start();
         }

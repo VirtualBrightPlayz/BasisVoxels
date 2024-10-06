@@ -177,18 +177,18 @@ public partial class BasisDemoVoxels
 
     private void OnNetChunk(NetChunkMsg msg)
     {
-        VoxelMesh mesh = SpawnOrGetChunk(msg.pos);
-        int count = Mathf.Min(mesh.chunk.voxels.Length, msg.voxels.Length);
+        Chunk mesh = SpawnOrGetChunk(msg.pos);
+        int count = Mathf.Min(mesh.voxels.Length, msg.voxels.Length);
         for (int i = 0; i < count; i++)
         {
-            mesh.chunk.voxels[i].Id = msg.voxels[i];
+            mesh.voxels[i].Id = msg.voxels[i];
             if (types[msg.voxels[i]].lit)
             {
-                mesh.chunk.voxels[i].Emit = types[msg.voxels[i]].litColor;
+                mesh.voxels[i].Emit = types[msg.voxels[i]].litColor;
             }
             else
-                mesh.chunk.voxels[i].Emit = new Color32(0, 0, 0, 0);
-            mesh.chunk.voxels[i].Layer = types[msg.voxels[i]].layer;
+                mesh.voxels[i].Emit = new Color32(0, 0, 0, 0);
+            mesh.voxels[i].Layer = types[msg.voxels[i]].layer;
         }
         QueueUpdateChunks(msg.pos, false);
     }
@@ -262,12 +262,12 @@ public partial class BasisDemoVoxels
     {
         if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
             return;
-        if (chunks.TryGetValue(pos, out VoxelMesh chunk))
+        if (chunks.TryGetValue(pos, out Chunk chunk))
         {
             byte[] data = SerializationUtility.SerializeValue(new NetChunkMsg()
             {
                 pos = pos,
-                voxels = chunk.chunk.voxels.Select(x => x.Id).ToArray(), // TODO: improve this?
+                voxels = chunk.voxels.Select(x => x.Id).ToArray(), // TODO: improve this?
             }, DataFormat.Binary);
             BasisScene.NetworkMessageSend(ChunkMessageId, Compress(data), DarkRift.DeliveryMethod.ReliableOrdered, targets);
         }

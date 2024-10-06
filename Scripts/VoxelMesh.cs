@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -7,10 +6,7 @@ using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[RequireComponent(typeof(MeshRenderer))]
-[RequireComponent(typeof(MeshFilter))]
-[RequireComponent(typeof(MeshCollider))]
-public class VoxelMesh : MonoBehaviour
+public class VoxelMesh
 {
     private List<Vector3> verts = new List<Vector3>();
     private List<Vector3> normals = new List<Vector3>();
@@ -20,14 +16,8 @@ public class VoxelMesh : MonoBehaviour
     public Chunk chunk;
     public VoxelWorld world;
     private Mesh mesh;
-    [HideInInspector]
-    public MeshRenderer meshRenderer;
-    [HideInInspector]
-    public MeshFilter meshFilter;
-    [HideInInspector]
-    public MeshCollider meshCollider;
+    private Material[] materials = new Material[0];
     private bool isUpdating = false;
-    private int shouldUpdate = 0;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ChunkVertex
@@ -186,22 +176,15 @@ public class VoxelMesh : MonoBehaviour
         trisLookup[id].Add(vertCount - 1);
     }
 
-    private void Update()
+    public Mesh GetMesh()
     {
-        if (shouldUpdate > 0 && !isUpdating)
-            _ = UpdateMeshAsync();
-    }
-
-    public void QueueUpdateMesh()
-    {
-        shouldUpdate = Mathf.Min(shouldUpdate + 1, 3);
+        return mesh;
     }
 
     public async Task UpdateMeshAsync()
     {
-        if (isUpdating || mesh == null || chunk == null /*|| !meshRenderer.enabled*/)
+        if (isUpdating || mesh == null || chunk == null)
             return;
-        shouldUpdate = Mathf.Max(shouldUpdate - 1, 0);
         isUpdating = true;
         verts.Clear();
         normals.Clear();
@@ -210,10 +193,7 @@ public class VoxelMesh : MonoBehaviour
         colors.Clear();
         verts.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
         uvs.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        Task task = new Task(AddChunk);
-        task.Start();
-        await task;
-        // AddChunk();
+        await Task.Run(AddChunk);
         Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
         Mesh.MeshData data = array[0];
         await Task.Run(() =>
@@ -230,10 +210,8 @@ public class VoxelMesh : MonoBehaviour
                 indCount += trisLookup[id].Count;
             data.SetIndexBufferParams(indCount, IndexFormat.UInt32);
             NativeArray<ChunkVertex> vertex = data.GetVertexData<ChunkVertex>();
-            Bounds bounds = new Bounds();
             for (int i = 0; i < verts.Count; i++)
             {
-                bounds.Encapsulate(verts[i]);
                 vertex[i] = new ChunkVertex()
                 {
                     position = verts[i],
@@ -253,25 +231,13 @@ public class VoxelMesh : MonoBehaviour
                     index[j++] = (uint)trisLookup[id][i];
                 }
                 SubMeshDescriptor desc = new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count);
-                desc.bounds = bounds;
                 data.SetSubMesh(k++, desc);
             }
         });
         Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
         mesh.bounds = new Bounds(Vector3.one * Chunk.SIZE * 0.5f, Vector3.one * Chunk.SIZE);
-        // mesh.RecalculateBounds();
-        // mesh.RecalculateNormals();
-        // mesh.RecalculateTangents();
-        if (verts.Count == 0)
-            meshFilter.sharedMesh = null;
-        else
-            meshFilter.sharedMesh = mesh;
         int instId = mesh.GetInstanceID();
         await Task.Run(() => Physics.BakeMesh(instId, false));
-        if (verts.Count == 0)
-            meshCollider.sharedMesh = null;
-        else
-            meshCollider.sharedMesh = mesh;
         Material[] tempList = new Material[trisLookup.Count];
         int i2 = 0;
         foreach (var id in trisLookup.Keys)
@@ -281,26 +247,29 @@ public class VoxelMesh : MonoBehaviour
             else
                 i2++;
         }
-        meshRenderer.sharedMaterials = tempList;
+        materials = tempList;
         isUpdating = false;
+        chunk.shouldUpdate = Mathf.Max(chunk.shouldUpdate - 1, 0);
     }
 
-    public void Setup()
+    public void Draw()
     {
-        meshRenderer = GetComponent<MeshRenderer>();
-        meshFilter = GetComponent<MeshFilter>();
-        meshCollider = GetComponent<MeshCollider>();
-        mesh = new Mesh();
-        Vector3 pos = transform.position;
-        chunk = new Chunk(VoxelWorld.FloorPosition(pos));
-    }
-
-    [Obsolete]
-    public async Task Generate()
-    {
-        await Task.Run(() =>
+        for (int i = 0; i < materials.Length; i++)
         {
-            world.GenerateVoxels(chunk);
-        });
+            Matrix4x4 matrix = Matrix4x4.Translate(chunk.chunkPosition * Chunk.SIZE);
+            RenderParams render = new RenderParams(materials[i]);
+            render.shadowCastingMode = ShadowCastingMode.On;
+            render.receiveShadows = true;
+            Graphics.RenderMesh(render, mesh, i, matrix);
+        }
+    }
+
+    public VoxelMesh(VoxelWorld wo, Chunk ch)
+    {
+        mesh = new Mesh();
+        world = wo;
+        chunk = ch;
+        isUpdating = false;
+        chunk.QueueUpdateMesh();
     }
 }

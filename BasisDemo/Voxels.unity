@@ -129,6 +129,7 @@ GameObject:
   - component: {fileID: 63342781}
   - component: {fileID: 63342780}
   - component: {fileID: 63342782}
+  - component: {fileID: 63342783}
   m_Layer: 0
   m_Name: VoxelWorld
   m_TagString: Untagged
@@ -154,7 +155,6 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 7ddd3c9d2ccd53c44b77ee71029d466b, type: 2}
   - {fileID: 2100000, guid: 2651db3304dd3ce40a9dfa2bc0f7ad9b, type: 2}
   - {fileID: 2100000, guid: eb742ae9f24497543b911db2030a10e3, type: 2}
-  prefab: {fileID: 427715546}
   seed: 1337
   tickRate: 20
   tickSpeed: 1
@@ -252,6 +252,21 @@ MonoBehaviour:
   RespawnCheckTimer: 0.1
   Group: {fileID: 0}
   HasSendEvent: 0
+--- !u!114 &63342783
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 63342779}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ae7875bc23ce6543934bf5b8b1ce1fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  world: {fileID: 63342780}
+  colliderPrefab: {fileID: 427715543}
+  renderDistance: 8
 --- !u!1 &414597579
 GameObject:
   m_ObjectHideFlags: 0
@@ -382,10 +397,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 427715547}
-  - component: {fileID: 427715546}
-  - component: {fileID: 427715548}
-  - component: {fileID: 427715545}
-  - component: {fileID: 427715544}
   - component: {fileID: 427715543}
   m_Layer: 0
   m_Name: Chunk
@@ -393,7 +404,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!64 &427715543
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -416,74 +427,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
---- !u!33 &427715544
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 427715542}
-  m_Mesh: {fileID: 0}
---- !u!23 &427715545
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 427715542}
-  m_Enabled: 1
-  m_CastShadows: 2
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 0
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials: []
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &427715546
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 427715542}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1f8444dc0ad4fda4d8673707d32977d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  world: {fileID: 0}
-  meshRenderer: {fileID: 0}
-  meshFilter: {fileID: 0}
-  meshCollider: {fileID: 0}
 --- !u!4 &427715547
 Transform:
   m_ObjectHideFlags: 0
@@ -499,20 +442,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &427715548
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 427715542}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3483086b3dc92194a8c2a327b1d336b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  distance: 8
-  mesh: {fileID: 427715546}
 --- !u!1 &1613010383
 GameObject:
   m_ObjectHideFlags: 0

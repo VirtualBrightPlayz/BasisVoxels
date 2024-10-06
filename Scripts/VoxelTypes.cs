@@ -25,6 +25,7 @@ public sealed class Chunk
     public Color32[] lights;
     public Color32[] visibleLights;
     public Vector3Int chunkPosition;
+    public int shouldUpdate = 0;
 
     public bool TryGetVoxel(int x, int y, int z, out Voxel voxel)
     {
@@ -71,6 +72,11 @@ public sealed class Chunk
     {
         Array.Copy(lights, visibleLights, visibleLights.Length);
         Array.Fill(lights, new Color32(0, 0, 0, 0));
+    }
+
+    public void QueueUpdateMesh()
+    {
+        shouldUpdate++;
     }
 
     public Chunk()

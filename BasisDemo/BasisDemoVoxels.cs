@@ -372,7 +372,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public void PlaceHighlighter(Ray ray, Transform highlight)
     {
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) && hit.transform.TryGetComponent(out VoxelMesh _))
+        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
         {
             Vector3 block = hit.point - hit.normal * 0.5f;
             Vector3Int pos = GetVoxelPosition(block);
@@ -425,7 +425,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public void TryDestroyBlock(Ray ray)
     {
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) && hit.transform.TryGetComponent(out VoxelMesh _))
+        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
         {
             Vector3 block = hit.point - hit.normal * 0.5f;
             if ((int)block.y == 0)
@@ -445,7 +445,7 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public void TryPlaceBlock(Ray ray, byte id)
     {
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) && hit.transform.TryGetComponent(out VoxelMesh _))
+        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
         {
             Vector3 block = hit.point + hit.normal * 0.5f;
             Vector3Int pos = GetVoxelPosition(block);
