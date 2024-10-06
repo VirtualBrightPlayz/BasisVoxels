@@ -17,7 +17,7 @@ public class VoxelMesh
     public VoxelWorld world;
     private Mesh mesh;
     private Material[] materials = new Material[0];
-    private bool isUpdating = false;
+    public bool isUpdating { get; private set; } = false;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ChunkVertex

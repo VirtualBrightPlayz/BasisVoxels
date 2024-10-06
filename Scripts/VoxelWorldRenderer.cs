@@ -6,14 +6,17 @@ public class VoxelWorldRenderer : MonoBehaviour
 {
     public VoxelWorld world;
     public MeshCollider colliderPrefab;
-    public Dictionary<Vector3Int, VoxelMesh> meshes = new Dictionary<Vector3Int, VoxelMesh>();
-    public Dictionary<Vector3Int, MeshCollider> colliders = new Dictionary<Vector3Int, MeshCollider>();
+    private List<VoxelMesh> meshes = new List<VoxelMesh>();
+    private List<VoxelMesh> activeMeshes = new List<VoxelMesh>();
+    private List<MeshCollider> colliders = new List<MeshCollider>();
+    private List<MeshCollider> activeColliders = new List<MeshCollider>();
+    private List<Chunk> chunks = new List<Chunk>();
+    private List<Chunk> activeChunks = new List<Chunk>();
+    private int chunkCount;
+    private int activeChunkCount;
     public int renderDistance = 8;
     private Camera cam;
     private Vector3Int lastPosition = Vector3Int.zero;
-    private List<Vector3Int> foundChunks = new List<Vector3Int>();
-    private List<Chunk> activeChunks = new List<Chunk>();
-    private int activeChunkCount;
 
     private void LateUpdate()
     {
@@ -22,53 +25,56 @@ public class VoxelWorldRenderer : MonoBehaviour
             cam = Camera.main;
             return;
         }
-        int max = (renderDistance * 2 + 1) * (renderDistance * 2 + 1) * (renderDistance * 2 + 1);
-        foundChunks.Clear();
-        foundChunks.Capacity = max;
+        int size = (renderDistance * 2 + 1);
+        int max = size * size * size;
         Vector3Int camChunkPos = VoxelWorld.FloorPosition(cam.transform.position);
         if (camChunkPos != lastPosition)
         {
-            foreach (var kvp in colliders)
+            Vector3Int minPos = camChunkPos - new Vector3Int(renderDistance, renderDistance, renderDistance);
+            Vector3Int maxPos = camChunkPos + new Vector3Int(renderDistance, renderDistance, renderDistance);
+            HashSet<int> usedPositions = new HashSet<int>();
+            for (int i = 0; i < chunkCount; i++)
             {
-                Destroy(kvp.Value.gameObject);
+                if (chunks[i].chunkPosition.x >= minPos.x && chunks[i].chunkPosition.y >= minPos.y && chunks[i].chunkPosition.z >= minPos.z &&
+                    chunks[i].chunkPosition.x <= maxPos.x && chunks[i].chunkPosition.y <= maxPos.y && chunks[i].chunkPosition.z <= maxPos.z)
+                {
+                    usedPositions.Add(chunks[i].chunkPosition.x + chunks[i].chunkPosition.y * size + chunks[i].chunkPosition.z * size * size);
+                    continue;
+                }
+                Destroy(colliders[i].gameObject);
+                Destroy(meshes[i].GetMesh());
+                meshes.RemoveAt(i);
+                colliders.RemoveAt(i);
+                chunks.RemoveAt(i);
+                i--;
+                chunkCount--;
             }
-            colliders.Clear();
-            activeChunks.Clear();
-            activeChunks.Capacity = max;
             for (int x = -renderDistance; x <= renderDistance; x++)
                 for (int y = -renderDistance; y <= renderDistance; y++)
                     for (int z = -renderDistance; z <= renderDistance; z++)
-                        if (world.TryGetChunk(camChunkPos + new Vector3Int(x, y, z), out Chunk chunk))
-                            activeChunks.Add(chunk);
-            activeChunkCount = activeChunks.Count;
+                    {
+                        Vector3Int chunkPos = camChunkPos + new Vector3Int(x, y, z);
+                        if (usedPositions.Contains(chunkPos.x + chunkPos.y * size + chunkPos.z * size * size))
+                            continue;
+                        if (world.TryGetChunk(chunkPos, out Chunk chunk))
+                        {
+                            chunks.Add(chunk);
+                            VoxelMesh mesh = new VoxelMesh(world, chunk);
+                            meshes.Add(mesh);
+                            MeshCollider collider = Instantiate(colliderPrefab, VoxelWorld.UnroundPosition(chunk.chunkPosition), Quaternion.identity, transform);
+                            collider.sharedMesh = mesh.GetMesh();
+                            colliders.Add(collider);
+                            _ = mesh.UpdateMeshAsync();
+                        }
+                    }
+            chunkCount = chunks.Count;
         }
-        for (int i = 0; i < activeChunkCount; i++)
+        for (int i = 0; i < chunkCount; i++)
         {
-            Chunk chunk = activeChunks[i];
-            foundChunks.Add(chunk.chunkPosition);
-            if (meshes.TryGetValue(chunk.chunkPosition, out VoxelMesh mesh))
-            {
-                if (chunk.shouldUpdate > 0)
-                {
-                    _ = mesh.UpdateMeshAsync();
-                }
-                mesh.Draw();
-                if (colliders.TryGetValue(chunk.chunkPosition, out MeshCollider collider))
-                {
-                    collider.sharedMesh = mesh.GetMesh();
-                }
-                else
-                {
-                    MeshCollider vCollider = Instantiate(colliderPrefab, VoxelWorld.UnroundPosition(chunk.chunkPosition), Quaternion.identity, transform);
-                    vCollider.sharedMesh = mesh.GetMesh();
-                    colliders.Add(chunk.chunkPosition, vCollider);
-                }
-            }
-            else
-            {
-                VoxelMesh vMesh = new VoxelMesh(world, chunk);
-                meshes.Add(chunk.chunkPosition, vMesh);
-            }
+            meshes[i].Draw();
+            if (chunks[i].shouldUpdate > 0)
+                _ = meshes[i].UpdateMeshAsync();
+            colliders[i].sharedMesh = meshes[i].GetMesh();
         }
         lastPosition = camChunkPos;
     }
