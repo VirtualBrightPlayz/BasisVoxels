@@ -161,6 +161,7 @@ public partial class BasisDemoVoxels : VoxelWorld
                 voxel.Id = voxelData.id;
                 SetVoxelWithData(voxelData.pos, voxel);
                 QueueTickVoxelArea(voxelData.pos);
+                PlayBlockSoundAt(voxelData.pos);
                 SendVoxel(voxelData.pos, voxel.Id);
                 QueueUpdateChunks(FloorPosition(voxelData.pos), false);
             }
