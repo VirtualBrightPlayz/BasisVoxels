@@ -55,11 +55,7 @@ public class VoxelWorldRenderer : MonoBehaviour
                         else
                         {
                             VoxelMesh vMesh = new VoxelMesh(world, chunk);
-                            // MeshCollider vCollider = Instantiate(colliderPrefab, VoxelWorld.UnroundPosition(chunk.chunkPosition), Quaternion.identity, transform);
                             meshes.Add(chunk.chunkPosition, vMesh);
-                            // colliders.Add(chunk.chunkPosition, vCollider);
-                            // vCollider.sharedMesh = vMesh.GetMesh();
-                            // _ = vMesh.UpdateMeshAsync();
                         }
                     }
                 }
