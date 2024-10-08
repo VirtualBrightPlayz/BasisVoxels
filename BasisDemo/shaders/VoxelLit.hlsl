@@ -85,7 +85,7 @@ void frag(
     #endif
 
     Light light = GetMainLight(IN.shadowCoords);
-    float4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy);
+    float4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv0FogCoord.xy) * _BaseColor;
     if (_AlphaClip)
     {
         clip(color.a - 0.5);

@@ -7,13 +7,9 @@ public class VoxelWorldRenderer : MonoBehaviour
     public VoxelWorld world;
     public MeshCollider colliderPrefab;
     private List<VoxelMesh> meshes = new List<VoxelMesh>();
-    private List<VoxelMesh> activeMeshes = new List<VoxelMesh>();
     private List<MeshCollider> colliders = new List<MeshCollider>();
-    private List<MeshCollider> activeColliders = new List<MeshCollider>();
     private List<Chunk> chunks = new List<Chunk>();
-    private List<Chunk> activeChunks = new List<Chunk>();
     private int chunkCount;
-    private int activeChunkCount;
     public int renderDistance = 8;
     private Camera cam;
     private Vector3Int lastPosition = Vector3Int.zero;
@@ -25,7 +21,7 @@ public class VoxelWorldRenderer : MonoBehaviour
             cam = Camera.main;
             return;
         }
-        int size = (renderDistance * 2 + 1);
+        int size = renderDistance * 2 + 1;
         int max = size * size * size;
         Vector3Int camChunkPos = VoxelWorld.FloorPosition(cam.transform.position);
         if (camChunkPos != lastPosition)

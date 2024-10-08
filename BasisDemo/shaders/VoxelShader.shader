@@ -3,6 +3,7 @@ Shader "VoxelShader"
     Properties
     {
         [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
+        [MainColor] _BaseColor("Color", Color) = (1, 1, 1, 1)
         
         _SrcBlend("__src", Int) = 1.0
         _DstBlend("__dst", Int) = 0.0

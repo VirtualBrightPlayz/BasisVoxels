@@ -254,7 +254,7 @@ public class VoxelMesh
 
     public void Draw()
     {
-        for (int i = 0; i < materials.Length; i++)
+        for (int i = 0; i < Mathf.Min(materials.Length, mesh.subMeshCount); i++)
         {
             Matrix4x4 matrix = Matrix4x4.Translate(chunk.chunkPosition * Chunk.SIZE);
             RenderParams render = new RenderParams(materials[i]);
