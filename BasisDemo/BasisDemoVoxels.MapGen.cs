@@ -168,23 +168,26 @@ public partial class BasisDemoVoxels
         if (!IsOwner)
             return;
         List<Task> tasks = new List<Task>();
-        foreach (var plr in BasisNetworkManagement.Players)
+        if (BasisNetworkManagement.Instance != null)
         {
-            if (plr.Value.Player is BasisRemotePlayer remote)
+            foreach (var plr in BasisNetworkManagement.Instance.Players)
             {
-                if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
+                if (plr.Value.Player is BasisRemotePlayer remote)
                 {
-                    Vector3Int playerChunkPos = FloorPosition(ctrl.BoneTransform.position);
-                    playerChunkPos.y = 0;
-                    if (!playerPositions.ContainsKey(plr.Key))
+                    if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
                     {
-                        playerPositions.Add(plr.Key, playerChunkPos);
-                        tasks.Add(TryGenChunk(playerChunkPos));
-                    }
-                    else if (playerPositions[plr.Key] != playerChunkPos)
-                    {
-                        playerPositions[plr.Key] = playerChunkPos;
-                        tasks.Add(TryGenChunk(playerChunkPos));
+                        Vector3Int playerChunkPos = FloorPosition(ctrl.BoneTransform.position);
+                        playerChunkPos.y = 0;
+                        if (!playerPositions.ContainsKey(plr.Key))
+                        {
+                            playerPositions.Add(plr.Key, playerChunkPos);
+                            tasks.Add(TryGenChunk(playerChunkPos));
+                        }
+                        else if (playerPositions[plr.Key] != playerChunkPos)
+                        {
+                            playerPositions[plr.Key] = playerChunkPos;
+                            tasks.Add(TryGenChunk(playerChunkPos));
+                        }
                     }
                 }
             }
@@ -199,10 +202,13 @@ public partial class BasisDemoVoxels
             }
         }
         await Task.WhenAll(tasks);
-        foreach (var plr in BasisNetworkManagement.Players)
+        if (BasisNetworkManagement.Instance != null)
         {
-            if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
-                SendChunks(plr.Key, pos);
+            foreach (var plr in BasisNetworkManagement.Instance.Players)
+            {
+                if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
+                    SendChunks(plr.Key, pos);
+            }
         }
     }
 

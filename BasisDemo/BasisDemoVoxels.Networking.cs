@@ -81,13 +81,13 @@ public partial class BasisDemoVoxels
         BasisNetworkManagement.OnOwnershipTransfer -= OnOwnerTransfer;
     }
 
-    private async void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner)
+    private async void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner)
     {
         if (UniqueEntityID == OwnershipID)
         {
             bool wasOwner = this.IsOwner;
             OwnerId = NetIdNewOwner;
-            this.IsOwner = IsOwner;
+            this.IsOwner = OwnerId == LocalNetworkPlayer.NetId; // TODO: untested
             if (IsOwner && !wasOwner)
             {
                 if (!hasMap)

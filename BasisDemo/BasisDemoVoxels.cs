@@ -406,16 +406,19 @@ public partial class BasisDemoVoxels : VoxelWorld
 
     public bool IsEntityBlocking(Vector3Int pos)
     {
-        foreach (var plr in BasisNetworkManagement.Players)
+        if (BasisNetworkManagement.Instance != null)
         {
-            if (plr.Value.Player is BasisRemotePlayer remote)
+            foreach (var plr in BasisNetworkManagement.Instance.Players)
             {
-                if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
+                if (plr.Value.Player is BasisRemotePlayer remote)
                 {
-                    Vector3Int playerPos = GetVoxelPosition(ctrl.BoneTransform.position);
-                    if ((playerPos - pos).sqrMagnitude <= networkPlayerBlockDist * networkPlayerBlockDist)
+                    if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
                     {
-                        return true;
+                        Vector3Int playerPos = GetVoxelPosition(ctrl.BoneTransform.position);
+                        if ((playerPos - pos).sqrMagnitude <= networkPlayerBlockDist * networkPlayerBlockDist)
+                        {
+                            return true;
+                        }
                     }
                 }
             }
