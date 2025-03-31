@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,7 +9,7 @@ public abstract class VoxelWorld : MonoBehaviour
 {
     public List<Material> materials = new List<Material>();
     public VoxelMesh prefab;
-    protected Dictionary<Vector3Int, Chunk> chunks = new Dictionary<Vector3Int, Chunk>();
+    protected ConcurrentDictionary<Vector3Int, Chunk> chunks = new ConcurrentDictionary<Vector3Int, Chunk>();
     public int seed = 1337;
     protected bool genRunning = false;
     protected Queue<Vector3Int> chunkUpdateQueue = new Queue<Vector3Int>();
@@ -140,7 +141,7 @@ public abstract class VoxelWorld : MonoBehaviour
     {
         if (!genRunning && chunkUpdateQueue.TryDequeue(out Vector3Int chunkPos))
         {
-            _ = UpdateChunks(chunkPos, true, true);
+            UpdateChunks(chunkPos, true, true);
         }
     }
 
@@ -268,7 +269,7 @@ public abstract class VoxelWorld : MonoBehaviour
     {
     }
 
-    public async Task UpdateChunks(Vector3Int chunkPos, bool updateMeshes, bool updateLightmap, int area = 1)
+    public void UpdateChunks(Vector3Int chunkPos, bool updateMeshes, bool updateLightmap, int area = 1)
     {
         if (genRunning)
             return;
@@ -314,7 +315,8 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             (Vector3Int pos2, Color32 col) = lights.Dequeue();
             ProcessLight(pos2);
-            await Task.Run(() => UpdateVoxelLightmap(pos2, col));
+            // await Task.Run(() => UpdateVoxelLightmap(pos2, col));
+            UpdateVoxelLightmap(pos2, col);
         }
         {
             for (int x = -area; x <= area; x++)
@@ -339,13 +341,8 @@ public abstract class VoxelWorld : MonoBehaviour
         }
         else
         {
-            // VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
-            // chunk.world = this;
-            // chunk.gameObject.SetActive(true);
-            // chunk.Setup();
             Chunk chunk = new Chunk(pos);
-            chunks.Add(pos, chunk);
-            return chunk;
+            return chunks.GetOrAdd(pos, chunk);
         }
     }
 
@@ -354,7 +351,8 @@ public abstract class VoxelWorld : MonoBehaviour
         if (!chunks.ContainsKey(pos))
         {
             Chunk chunk = new Chunk(pos);
-            chunks.Add(pos, chunk);
+            if (!chunks.TryAdd(pos, chunk))
+                return null;
             return chunk;
         }
         return null;
@@ -364,11 +362,18 @@ public abstract class VoxelWorld : MonoBehaviour
 
     #region Lighting
 
+    private Queue<(Vector3Int, Color32)> lightmapQueue = new Queue<(Vector3Int, Color32)>();
+    private List<Vector3Int> lightmapList = new List<Vector3Int>();
+
     public void UpdateVoxelLightmap(Vector3Int voxPos, Color32 baseLight)
     {
-        Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
+        // Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
+        var queue = lightmapQueue;
+        queue.Clear();
         queue.Enqueue((voxPos, baseLight));
-        List<Vector3Int> list = new List<Vector3Int>();
+        // List<Vector3Int> list = new List<Vector3Int>();
+        var list = lightmapList;
+        list.Clear();
         while (queue.Count != 0)
         {
             (Vector3Int pos, Color32 light) = queue.Dequeue();

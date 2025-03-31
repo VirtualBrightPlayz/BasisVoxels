@@ -7,7 +7,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.NetworkedPlayer;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -19,7 +19,7 @@ public partial class BasisDemoVoxels : VoxelWorld
         public double timeUntilFall;
     }
 
-    private BasisNetworkedPlayer LocalNetworkPlayer;
+    private BasisNetworkPlayer LocalNetworkPlayer;
     [Header("Basis Demo")]
     public List<VoxelType> types = new List<VoxelType>();
 
@@ -71,7 +71,7 @@ public partial class BasisDemoVoxels : VoxelWorld
         if (genOnStart)
         {
             IsOwner = true;
-            _ = GenerateMap(true);
+            GenerateMap(true);
         }
     }
 
@@ -138,7 +138,7 @@ public partial class BasisDemoVoxels : VoxelWorld
     {
         if (!genRunning && hasMap && chunkUpdateQueue.TryDequeue(out Vector3Int chunkPos))
         {
-            _ = UpdateChunks(chunkPos, true, true);
+            UpdateChunks(chunkPos, true, true);
         }
     }
 
@@ -408,7 +408,7 @@ public partial class BasisDemoVoxels : VoxelWorld
     {
         if (BasisNetworkManagement.Instance != null)
         {
-            foreach (var plr in BasisNetworkManagement.Instance.Players)
+            foreach (var plr in BasisNetworkManagement.Players)
             {
                 if (plr.Value.Player is BasisRemotePlayer remote)
                 {

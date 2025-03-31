@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.NetworkedPlayer;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using BasisSerializer.OdinSerializer;
 using UnityEngine;
 
@@ -81,18 +81,18 @@ public partial class BasisDemoVoxels
         BasisNetworkManagement.OnOwnershipTransfer -= OnOwnerTransfer;
     }
 
-    private async void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner)
+    private void OnOwnerTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner)
     {
         if (UniqueEntityID == OwnershipID)
         {
             bool wasOwner = this.IsOwner;
             OwnerId = NetIdNewOwner;
-            this.IsOwner = OwnerId == LocalNetworkPlayer.NetId; // TODO: untested
+            this.IsOwner = IsOwner;
             if (IsOwner && !wasOwner)
             {
                 if (!hasMap)
                 {
-                    await GenerateMap(true);
+                    GenerateMap(true);
                     foreach (var pos in chunks.Keys)
                     {
                         SendChunk(pos);
@@ -103,13 +103,13 @@ public partial class BasisDemoVoxels
         }
     }
 
-    private void OnLocalJoin(BasisNetworkedPlayer player1, BasisLocalPlayer player2)
+    private void OnLocalJoin(BasisNetworkPlayer player1, BasisLocalPlayer player2)
     {
         LocalNetworkPlayer = player1;
         BasisNetworkManagement.RequestCurrentOwnership(OwnershipID);
     }
 
-    private void OnRemoteJoin(BasisNetworkedPlayer player1, BasisRemotePlayer player2)
+    private void OnRemoteJoin(BasisNetworkPlayer player1, BasisRemotePlayer player2)
     {
         if (IsOwner)
         {
@@ -120,14 +120,14 @@ public partial class BasisDemoVoxels
         }
     }
 
-    private void OnRemoteLeft(BasisNetworkedPlayer player1, BasisRemotePlayer player2)
+    private void OnRemoteLeft(BasisNetworkPlayer player1, BasisRemotePlayer player2)
     {
         BasisNetworkManagement.RequestCurrentOwnership(OwnershipID);
         sentChunks.Remove(player1.NetId);
-        playerPositions.Remove(player1.NetId);
+        playerPositions.TryRemove(player1.NetId, out _);
     }
 
-    private void OnSceneMessage(ushort PlayerID, ushort MessageIndex, byte[] buffer, ushort[] Recipients)
+    private void OnSceneMessage(ushort PlayerID, ushort MessageIndex, byte[] buffer, LiteNetLib.DeliveryMethod deliveryMethod)
     {
         switch (MessageIndex)
         {
@@ -170,9 +170,9 @@ public partial class BasisDemoVoxels
         }
     }
 
-    private async void OnNetSeed()
+    private void OnNetSeed()
     {
-        await GenerateMap(false);
+        GenerateMap(false);
     }
 
     private void OnNetChunk(NetChunkMsg msg)
@@ -195,10 +195,10 @@ public partial class BasisDemoVoxels
 
     private void SendSeed(ushort[] targets = null)
     {
-        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
+        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.HasSentOnLocalPlayerJoin)
             return;
         byte[] data = SerializationUtility.SerializeValue(new NetSeedMsg() { seed = seed }, DataFormat.Binary);
-        BasisScene.NetworkMessageSend(SeedMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered, targets);
+        BasisScene.NetworkMessageSend(SeedMessageId, data, LiteNetLib.DeliveryMethod.ReliableOrdered, targets);
     }
 
     private void SendVoxel(Vector3Int pos)
@@ -211,25 +211,25 @@ public partial class BasisDemoVoxels
 
     private void SendTime(float time)
     {
-        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
+        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.HasSentOnLocalPlayerJoin)
             return;
         byte[] data = SerializationUtility.SerializeValue(new NetTimeMsg()
         {
             time = time,
         }, DataFormat.Binary);
-        BasisScene.NetworkMessageSend(TimeMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered);
+        BasisScene.NetworkMessageSend(TimeMessageId, data, LiteNetLib.DeliveryMethod.ReliableOrdered);
     }
 
     private void SendVoxel(Vector3Int pos, byte id)
     {
-        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
+        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.HasSentOnLocalPlayerJoin)
             return;
         byte[] data = SerializationUtility.SerializeValue(new NetVoxelMsg()
         {
             pos = pos,
             id = id,
         }, DataFormat.Binary);
-        BasisScene.NetworkMessageSend(VoxelMessageId, data, DarkRift.DeliveryMethod.ReliableOrdered);
+        BasisScene.NetworkMessageSend(VoxelMessageId, data, LiteNetLib.DeliveryMethod.ReliableOrdered);
     }
 
     private void SendChunks(ushort target, Vector3Int chunkPos)
@@ -260,7 +260,7 @@ public partial class BasisDemoVoxels
 
     private void SendChunk(Vector3Int pos, ushort[] targets = null)
     {
-        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.Instance.HasInitalizedClient)
+        if (BasisNetworkManagement.Instance == null || !BasisNetworkManagement.HasSentOnLocalPlayerJoin)
             return;
         if (chunks.TryGetValue(pos, out Chunk chunk))
         {
@@ -269,7 +269,7 @@ public partial class BasisDemoVoxels
                 pos = pos,
                 voxels = chunk.voxels.Select(x => x.Id).ToArray(), // TODO: improve this?
             }, DataFormat.Binary);
-            BasisScene.NetworkMessageSend(ChunkMessageId, Compress(data), DarkRift.DeliveryMethod.ReliableOrdered, targets);
+            BasisScene.NetworkMessageSend(ChunkMessageId, Compress(data), LiteNetLib.DeliveryMethod.ReliableOrdered, targets);
         }
     }
 }

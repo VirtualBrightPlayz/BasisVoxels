@@ -1,5 +1,6 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
@@ -21,57 +22,61 @@ public partial class BasisDemoVoxels
     public FastNoiseLite heightNoise2;
     public FastNoiseLite biomeNoise;
     public bool hasMap = false;
+    public float maxHeight = 16f;
 
-    private bool mapGenRunning = false;
+    private Mutex mapgenMutex = new Mutex();
+    private Mutex genChunkMutex = new Mutex();
 
     private Vector3Int lastPos;
-    private Dictionary<ushort, Vector3Int> playerPositions = new Dictionary<ushort, Vector3Int>();
+    private ConcurrentDictionary<ushort, Vector3Int> playerPositions = new ConcurrentDictionary<ushort, Vector3Int>();
 
     private async Task TryGenChunk(Vector3Int pos)
     {
-        while (mapGenRunning)
-            await Task.Delay(100);
-        // if (mapGenRunning)
-            // return;
-        mapGenRunning = true;
-        List<Chunk> meshes = new List<Chunk>();
-        for (int x = -renderDistance; x <= renderDistance; x++)
+        genChunkMutex.WaitOne();
+        try
         {
-            for (int y = 0; y <= renderDistance; y++)
+            List<Chunk> meshes = new List<Chunk>();
+            for (int x = -renderDistance; x <= renderDistance; x++)
             {
-                for (int z = -renderDistance; z <= renderDistance; z++)
+                for (int y = 0; y <= renderDistance * 2; y++)
                 {
-                    Chunk mesh = SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
-                    if (mesh != null)
-                        meshes.Add(mesh);
+                    for (int z = -renderDistance; z <= renderDistance; z++)
+                    {
+                        Chunk mesh = SpawnChunk(new Vector3Int(pos.x + x, y, pos.z + z));
+                        if (mesh != null)
+                            meshes.Add(mesh);
+                    }
                 }
             }
-        }
-        Task[] meshTasks = new Task[meshes.Count];
-        for (int i = 0; i < meshes.Count; i++)
-        {
-            meshTasks[i] = new Task(j =>
+            Task[] meshTasks = new Task[meshes.Count];
+            for (int i = 0; i < meshes.Count; i++)
             {
-                GenerateVoxels(meshes[(int)j]);
-            }, i);
-            meshTasks[i].Start();
-        }
-        await Task.WhenAll(meshTasks);
-        for (int i = 0; i < meshes.Count; i++)
-        {
-            meshTasks[i] = new Task(j =>
+                meshTasks[i] = new Task(j =>
+                {
+                    GenerateVoxels(meshes[(int)j]);
+                }, i);
+                meshTasks[i].Start();
+            }
+            await Task.WhenAll(meshTasks);
+            for (int i = 0; i < meshes.Count; i++)
             {
-                if (meshes[(int)j].chunkPosition.y == 0)
-                    GenerateDecor(meshes[(int)j]);
-            }, i);
-            meshTasks[i].Start();
+                meshTasks[i] = new Task(j =>
+                {
+                    if (meshes[(int)j].chunkPosition.y == 0)
+                        GenerateDecor(meshes[(int)j]);
+                }, i);
+                meshTasks[i].Start();
+            }
+            await Task.WhenAll(meshTasks);
+            foreach (var chunk in meshes)
+            {
+                chunk.QueueUpdateMesh();
+            }
         }
-        await Task.WhenAll(meshTasks);
-        foreach (var chunk in meshes)
+        finally
         {
-            chunk.QueueUpdateMesh();
+            genChunkMutex.ReleaseMutex();
         }
-        mapGenRunning = false;
     }
 
     public int GetSurfaceLevel(int x, int z)
@@ -129,22 +134,25 @@ public partial class BasisDemoVoxels
                 for (int y = 0; y < Chunk.SIZE; y++)
                 {
                     Vector3Int worldPos = chunk.chunkPosition * Chunk.SIZE + new Vector3Int(x, y, z);
-                    if (TryGetVoxel(x, y, z, out Voxel vox))
+                    if (chunk.TryGetVoxel(x, y, z, out Voxel vox))
                     {
                         if (worldPos.y < 3 && worldPos.y < height)
                         {
                             vox.Id = floorBlockId;
-                            SetVoxelWithData(worldPos, vox);
+                            // SetVoxelWithData(worldPos, vox);
+                            chunk.SetVoxel(x, y, z, SetVoxelData(vox, worldPos));
                         }
                         else if (worldPos.y < height)
                         {
                             vox.Id = (byte)types.IndexOf(biomes[biome].surface);
-                            SetVoxelWithData(worldPos, vox);
+                            // SetVoxelWithData(worldPos, vox);
+                            chunk.SetVoxel(x, y, z, SetVoxelData(vox, worldPos));
                         }
                         else
                         {
                             vox.Id = 0;
-                            SetVoxelWithData(worldPos, vox);
+                            // SetVoxelWithData(worldPos, vox);
+                            chunk.SetVoxel(x, y, z, SetVoxelData(vox, worldPos));
                         }
                     }
                 }
@@ -154,65 +162,103 @@ public partial class BasisDemoVoxels
 
     public float GetHeight(int x, int z)
     {
-        return ((heightNoise.GetNoise(x, z) * 0.5f + 0.5f) * 1f + (heightNoise2.GetNoise(x, z) * 0.5f + 0.5f) * 2f) * Chunk.SIZE * renderDistance / 2f;
+        return ((heightNoise.GetNoise(x, z) * 0.5f + 0.5f) * 1f + (heightNoise2.GetNoise(x, z) * 0.5f + 0.5f) * 2f) * maxHeight;
     }
 
     public int GetBiome(int x, int z)
     {
         float val = biomeNoise.GetNoise(x, z);
-        return biomes.IndexOf(biomes.OrderBy(p => Mathf.Abs(p.biomePosition - val)).First());
+        int idx = 0;
+        float idxVal = Mathf.Abs(biomes[0].biomePosition - val);
+        for (int i = 0; i < biomes.Count; i++)
+        {
+            float iVal = Mathf.Abs(biomes[i].biomePosition - val);
+            if (iVal < idxVal)
+            {
+                idxVal = iVal;
+                idx = i;
+            }
+        }
+        return idx;
+        // return biomes.IndexOf(biomes.OrderBy(p => Mathf.Abs(p.biomePosition - val)).First());
     }
 
-    public async void UpdateMapGen()
+    public void UpdateMapGen()
     {
         if (!IsOwner)
             return;
-        List<Task> tasks = new List<Task>();
-        if (BasisNetworkManagement.Instance != null)
+        if (!mapgenMutex.WaitOne(0))
+            return;
+        try
         {
-            foreach (var plr in BasisNetworkManagement.Instance.Players)
+            List<Task> tasks = new List<Task>();
+            if (BasisNetworkManagement.Instance != null)
             {
-                if (plr.Value.Player is BasisRemotePlayer remote)
+                foreach (var plr in BasisNetworkManagement.Players)
                 {
-                    if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
+                    if (plr.Value.Player is BasisRemotePlayer remote)
                     {
-                        Vector3Int playerChunkPos = FloorPosition(ctrl.BoneTransform.position);
-                        playerChunkPos.y = 0;
-                        if (!playerPositions.ContainsKey(plr.Key))
+                        if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
                         {
-                            playerPositions.Add(plr.Key, playerChunkPos);
-                            tasks.Add(TryGenChunk(playerChunkPos));
-                        }
-                        else if (playerPositions[plr.Key] != playerChunkPos)
-                        {
-                            playerPositions[plr.Key] = playerChunkPos;
-                            tasks.Add(TryGenChunk(playerChunkPos));
+                            Vector3Int playerChunkPos = FloorPosition(ctrl.BoneTransform.position);
+                            playerChunkPos.y = 0;
+                            if (!playerPositions.ContainsKey(plr.Key))
+                            {
+                                playerPositions.TryAdd(plr.Key, playerChunkPos);
+                                tasks.Add(TryGenChunk(playerChunkPos));
+                                // TryGenChunk(playerChunkPos);
+                            }
+                            else if (playerPositions[plr.Key] != playerChunkPos)
+                            {
+                                playerPositions[plr.Key] = playerChunkPos;
+                                tasks.Add(TryGenChunk(playerChunkPos));
+                                // TryGenChunk(playerChunkPos);
+                            }
                         }
                     }
                 }
             }
-        }
-        if (BasisLocalCameraDriver.Instance != null && BasisLocalCameraDriver.Instance.Camera != null)
-        {
-            Vector3Int pos = FloorPosition(BasisLocalCameraDriver.Instance.Camera.transform.position);
-            if (lastPos != pos)
+            if (BasisLocalCameraDriver.Instance != null && BasisLocalCameraDriver.Instance.Camera != null)
             {
-                tasks.Add(TryGenChunk(pos));
-                lastPos = pos;
+                Vector3Int pos = FloorPosition(BasisLocalCameraDriver.Instance.Camera.transform.position);
+                if (lastPos != pos)
+                {
+                    tasks.Add(TryGenChunk(pos));
+                    // TryGenChunk(pos);
+                    lastPos = pos;
+                }
             }
-        }
-        await Task.WhenAll(tasks);
-        if (BasisNetworkManagement.Instance != null)
-        {
-            foreach (var plr in BasisNetworkManagement.Instance.Players)
+            Task.Run(async () =>
             {
-                if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
-                    SendChunks(plr.Key, pos);
+                await Task.WhenAll(tasks);
+                mapgenMutex.ReleaseMutex();
+                if (BasisNetworkManagement.Instance != null)
+                {
+                    foreach (var plr in BasisNetworkManagement.Players)
+                    {
+                        if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
+                            SendChunks(plr.Key, pos);
+                    }
+                }
+            });
+            /*
+            if (BasisNetworkManagement.Instance != null)
+            {
+                foreach (var plr in BasisNetworkManagement.Players)
+                {
+                    if (playerPositions.TryGetValue(plr.Key, out Vector3Int pos))
+                        SendChunks(plr.Key, pos);
+                }
             }
+            */
+        }
+        finally
+        {
+            // mapgenMutex.ReleaseMutex();
         }
     }
 
-    private async Task GenerateMap(bool actually)
+    private void GenerateMap(bool actually)
     {
         Debug.Log("Generating Map...");
         hasMap = true;
@@ -221,7 +267,7 @@ public partial class BasisDemoVoxels
         heightNoise.SetFrequency(0.005f);
 
         heightNoise2 = new FastNoiseLite(seed);
-        heightNoise2.SetFrequency(0.005f);
+        heightNoise2.SetFrequency(0.001f);
         heightNoise2.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
 
         biomeNoise = new FastNoiseLite(seed + 1);
@@ -231,9 +277,9 @@ public partial class BasisDemoVoxels
         rng = new System.Random(seed);
         if (actually)
         {
-            await TryGenChunk(Vector3Int.zero);
+            // TryGenChunk(Vector3Int.zero);
             if (genOnStart && BasisLocalPlayer.Instance != null)
-                BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * renderDistance, Quaternion.identity);
+                BasisLocalPlayer.Instance.Teleport(Vector3.up * Chunk.SIZE * maxHeight, Quaternion.identity);
         }
     }
 }
