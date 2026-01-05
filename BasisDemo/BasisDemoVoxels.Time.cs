@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public partial class BasisDemoVoxels
@@ -6,8 +7,10 @@ public partial class BasisDemoVoxels
     public float timeSpeed = 1f;
     [Range(0f, 1f)]
     public float minAmbientLight = 0.75f;
-    private float timeRotation;
+    public float timeRotation;
     private float lastSentTime;
+
+    public Action<float> OnSetTime = (_) => { };
 
     public void UpdateTimeCycle()
     {
@@ -17,7 +20,7 @@ public partial class BasisDemoVoxels
         {
             if (Mathf.Abs(timeRotation - lastSentTime) > 5f)
             {
-                SendTime(timeRotation);
+                OnSetTime?.Invoke(timeRotation);
                 lastSentTime = timeRotation;
             }
         }

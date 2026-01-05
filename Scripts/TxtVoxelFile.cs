@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class TxtVoxelFile
 {
-    public List<Color> colorLookup = new List<Color>();
+    public List<Color32> colorLookup = new List<Color32>();
 
     public TxtVoxelFile()
     {
@@ -13,7 +13,7 @@ public class TxtVoxelFile
 
     public TxtVoxelFile(string[] htmlColors)
     {
-        colorLookup.AddRange(htmlColors.Select(x => ColorUtility.TryParseHtmlString('#' + x, out Color color) ? color : Color.white));
+        colorLookup.AddRange(htmlColors.Select(x => ColorUtility.TryParseHtmlString('#' + x, out var c) ? (Color32)c : new Color32()));
     }
 
     public void Read(string content, Vector3Int offset, VoxelWorld world)
@@ -57,8 +57,8 @@ public class TxtVoxelFile
                 {
                     if (world.TryGetVoxel(x, z, y, out Voxel vox) && vox.IsActive)
                     {
-                        Color color = colorLookup[vox.Id];
-                        string hex = ColorUtility.ToHtmlStringRGB(color).ToLower();
+                        Color32 color = colorLookup[vox.Id];
+                        string hex = ColorUtility.ToHtmlStringRGBA(color);
                         // swap y and z
                         sb.AppendLine($"{x} {z} {y} {hex}");
                     }

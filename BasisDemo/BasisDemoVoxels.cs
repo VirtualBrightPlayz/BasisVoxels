@@ -19,34 +19,27 @@ public partial class BasisDemoVoxels : VoxelWorld
         public double timeUntilFall;
     }
 
-    private BasisNetworkPlayer LocalNetworkPlayer;
+    public IGameMode GameMode => GetComponents<IGameMode>().FirstOrDefault(x => x.Enabled);
+
     [Header("Basis Demo")]
     public List<VoxelType> types = new List<VoxelType>();
 
-    public Transform highlighter;
     public GameObject breakBlockSound;
-    public GameObject inventoryPrefab;
 
     public Light blockLightPrefab;
     public Light sun;
 
-    private Transform[] highlighters;
-
-    public ushort OwnerId = 0;
+    public BasisNetworkPlayer OwnerId;
     public bool IsOwner = false;
 
     public float interactDistance = 5f;
     public float networkPlayerBlockDist = 1.1f;
-    public int renderDistance = 5;
     public LayerMask layers;
     public LayerMask playerLayers;
-    public byte placeBlockId = 1;
 
     public List<string> htmlVoxelColors = new List<string>();
 
     public Dictionary<Vector3Int, Light> blockLights = new Dictionary<Vector3Int, Light>();
-
-    public bool genOnStart = false;
 
     private void Awake()
     {
@@ -54,12 +47,10 @@ public partial class BasisDemoVoxels : VoxelWorld
         materials.AddRange(types.Select(x => x.material));
         htmlVoxelColors.Clear();
         htmlVoxelColors.AddRange(types.Select(x => x.htmlColor));
-        InitNetworking();
     }
 
     private void Start()
     {
-        inventoryAction.Enable();
         if (!genOnStart)
             seed = Random.Range(0, int.MaxValue);
         if (BasisLocalPlayer.Instance == null)
@@ -75,10 +66,10 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
-    private void Update()
+    public override void Update()
     {
-        UpdateTasks();
         UpdateMapGen();
+        UpdateTasks();
         UpdateTimeCycle();
         if (IsOwner)
             Tick();
@@ -89,20 +80,26 @@ public partial class BasisDemoVoxels : VoxelWorld
         }
     }
 
+    public Dictionary<Vector3Int, Chunk> GetChunks()
+    {
+        return chunks;
+    }
+
     private void InitLocalPlayer()
     {
-        BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate += OnPostSimulate;
-        BasisDeviceManagement.Instance.AllInputDevices.OnListChanged += FindTrackerRoles;
+        IGameMode[] modes = GetComponents<IGameMode>();
+        for (int i = 0; i < modes.Length; i++)
+        {
+            modes[i].Enabled = false;
+        }
+        modes[0].Enabled = true;
         // BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved += ResetIfNeeded; // TODO
-        FindTrackerRoles();
         BasisLocalPlayer.OnLocalPlayerCreatedAndReady -= InitLocalPlayer;
     }
 
     private void OnDestroy()
     {
-        DeInitNetworking();
-        BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate -= OnPostSimulate;
-        BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindTrackerRoles;
+        OnDestroyMapGen();
     }
 
     public override void ProcessLight(Vector3Int pos)
@@ -162,7 +159,6 @@ public partial class BasisDemoVoxels : VoxelWorld
                 SetVoxelWithData(voxelData.pos, voxel);
                 QueueTickVoxelArea(voxelData.pos);
                 PlayBlockSoundAt(voxelData.pos);
-                SendVoxel(voxelData.pos, voxel.Id);
                 QueueUpdateChunks(FloorPosition(voxelData.pos), false);
             }
         }
@@ -217,159 +213,6 @@ public partial class BasisDemoVoxels : VoxelWorld
         File.WriteAllText("world.txt", voxelFile.Write(Vector3Int.one * Chunk.SIZE * -renderDistance, Vector3Int.one * Chunk.SIZE * renderDistance, this));
     }
 
-#region Inputs
-
-    [Header("Inputs")]
-    public InputAction inventoryAction;
-
-    private BasisInput centerEye;
-    private BasisInput leftHand;
-    private BasisInput rightHand;
-    private bool lastTriggerLeftMouse = false;
-    private bool lastTriggerRightMouse = false;
-    private bool lastInventoryButton = false;
-
-    private void FindTrackerRoles()
-    {
-        centerEye = FindTrackerByRole(BasisBoneTrackedRole.CenterEye);
-        leftHand = FindTrackerByRole(BasisBoneTrackedRole.LeftHand);
-        rightHand = FindTrackerByRole(BasisBoneTrackedRole.RightHand);
-        if (highlighters != null)
-        {
-            for (int i = 0; i < highlighters.Length; i++)
-            {
-                if (highlighters[i] != null)
-                {
-                    Destroy(highlighters[i].gameObject);
-                }
-            }
-        }
-        highlighters = new Transform[3];
-        highlighters[0] = Instantiate(highlighter, transform);
-        highlighters[1] = Instantiate(highlighter, transform);
-        highlighters[2] = Instantiate(highlighter, transform);
-    }
-
-    private BasisInput FindTrackerByRole(BasisBoneTrackedRole TrackedRole)
-    {
-        int count = BasisDeviceManagement.Instance.AllInputDevices.Count;
-        for (int Index = 0; Index < count; Index++)
-        {
-            BasisInput Input = BasisDeviceManagement.Instance.AllInputDevices[Index];
-            if (Input != null)
-            {
-                if (Input.TryGetRole(out BasisBoneTrackedRole role))
-                {
-                    if (role == TrackedRole)
-                    {
-                        return Input;
-                    }
-                }
-                else
-                {
-                    Debug.LogError("Missing Role " + role);
-                }
-            }
-            else
-            {
-                Debug.LogError("There was a missing BasisInput at " + Index);
-            }
-        }
-        return null;
-    }
-
-    private void OnPostSimulate()
-    {
-        if (highlighters == null)
-            return;
-        if (BasisUIManagement.Instance.basisUIBases.Count != 0)
-            return;
-        if (BasisDeviceManagement.IsUserInDesktop())
-        {
-            if (BasisLocalInputActions.Instance != null && centerEye != null)
-            {
-                Ray dir = new Ray(centerEye.transform.position, centerEye.transform.forward);
-                PlaceHighlighter(dir, highlighters[0]);
-                bool leftMouse = BasisLocalInputActions.Instance.LeftMousePressed.action.ReadValue<float>() >= 0.5f;
-                bool rightMouse = BasisLocalInputActions.Instance.RightMousePressed.action.ReadValue<float>() >= 0.5f;
-                bool inventoryBtn = inventoryAction.ReadValue<float>() >= 0.5f;
-                if (leftMouse && !lastTriggerLeftMouse)
-                {
-                    TryDestroyBlock(dir);
-                }
-                if (rightMouse && !lastTriggerRightMouse)
-                {
-                    TryPlaceBlock(dir, placeBlockId);
-                }
-                if (inventoryBtn && !lastInventoryButton)
-                {
-                    ToggleInventoryUI();
-                }
-                lastTriggerLeftMouse = leftMouse;
-                lastTriggerRightMouse = rightMouse;
-                lastInventoryButton = inventoryBtn;
-            }
-        }
-        else
-        {
-            if (centerEye != null)
-            {
-                Ray dir = new Ray(centerEye.transform.position, centerEye.transform.forward);
-                highlighters[0].gameObject.SetActive(false);
-                if (centerEye.InputState.Trigger >= 0.5f && centerEye.LastState.Trigger < 0.5f)
-                {
-                    TryDestroyBlock(dir);
-                }
-            }
-            if (leftHand != null)
-            {
-                Ray dir = new Ray(leftHand.transform.position, leftHand.transform.forward);
-                PlaceHighlighter(dir, highlighters[1]);
-                if (leftHand.InputState.Trigger >= 0.5f && leftHand.LastState.Trigger < 0.5f)
-                {
-                    TryDestroyBlock(dir);
-                }
-            }
-            if (rightHand != null)
-            {
-                Ray dir = new Ray(rightHand.transform.position, rightHand.transform.forward);
-                PlaceHighlighter(dir, highlighters[2]);
-                if (rightHand.InputState.Trigger >= 0.5f && rightHand.LastState.Trigger < 0.5f)
-                {
-                    TryPlaceBlock(dir, placeBlockId);
-                }
-                if (rightHand.InputState.SecondaryButtonGetState && !rightHand.LastState.SecondaryButtonGetState)
-                {
-                    ToggleInventoryUI();
-                }
-            }
-        }
-    }
-
-    #endregion
-
-
-    public void ToggleInventoryUI()
-    {
-        if (InventoryUI.Instance != null)
-        {
-            InventoryUI.Instance.CloseThisMenu();
-        }
-        else
-        {
-            GameObject obj = Instantiate(inventoryPrefab);
-            if (obj.TryGetComponent(out InventoryUI inv))
-            {
-                inv.Open();
-                inv.FillBlocks(this);
-            }
-            else
-            {
-                Destroy(obj);
-            }
-        }
-    }
-
     public void PlaceHighlighter(Ray ray, Transform highlight)
     {
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
@@ -408,17 +251,14 @@ public partial class BasisDemoVoxels : VoxelWorld
     {
         if (BasisNetworkManagement.Instance != null)
         {
-            foreach (var plr in BasisNetworkManagement.Players)
+            foreach (var plr in BasisNetworkPlayers.Players)
             {
                 if (plr.Value.Player is BasisRemotePlayer remote)
                 {
-                    if (remote.RemoteBoneDriver.FindBone(out BasisBoneControl ctrl, BasisBoneTrackedRole.Hips))
+                    Vector3Int playerPos = GetVoxelPosition(remote.PlayerSelf.position);
+                    if ((playerPos - pos).sqrMagnitude <= networkPlayerBlockDist * networkPlayerBlockDist)
                     {
-                        Vector3Int playerPos = GetVoxelPosition(ctrl.BoneTransform.position);
-                        if ((playerPos - pos).sqrMagnitude <= networkPlayerBlockDist * networkPlayerBlockDist)
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
@@ -426,43 +266,53 @@ public partial class BasisDemoVoxels : VoxelWorld
         return Physics.CheckBox(pos + Vector3.one * 0.5f, Vector3.one * 0.45f, Quaternion.identity, playerLayers);
     }
 
-    public void TryDestroyBlock(Ray ray)
+    public bool TryDestroyBlock(Ray ray, out Voxel vox, out Vector3Int voxPos)
     {
+        vox = default;
+        voxPos = default;
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
         {
             Vector3 block = hit.point - hit.normal * 0.5f;
             if ((int)block.y == 0)
-                return;
+                return false;
             Vector3Int pos = GetVoxelPosition(block);
-            if (TryGetVoxel(pos, out Voxel vox))
+            voxPos = pos;
+            bool flag = false;
+            if (TryGetVoxel(pos, out vox))
             {
-                vox.Id = 0;
-                SetVoxelWithData(pos, vox);
+                flag = true;
+                Voxel newVox = vox;
+                newVox.Id = 0;
+                SetVoxelWithData(pos, newVox);
                 QueueTickVoxelArea(pos);
                 PlayBlockSoundAt(pos);
-                SendVoxel(pos, 0);
             }
-            QueueUpdateChunks(FloorPosition(block), true);
+            QueueUpdateChunks(FloorPosition(Vector3Int.FloorToInt(block)), true);
+            return flag;
         }
+        return false;
     }
 
-    public void TryPlaceBlock(Ray ray, byte id)
+    public bool TryPlaceBlock(Ray ray, byte id)
     {
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, layers) /*&& hit.transform.TryGetComponent(out VoxelWorldRenderer _)*/)
         {
             Vector3 block = hit.point + hit.normal * 0.5f;
             Vector3Int pos = GetVoxelPosition(block);
             if (IsEntityBlocking(pos))
-                return;
+                return false;
+            bool flag = false;
             if (TryGetVoxel(pos, out Voxel vox))
             {
+                flag = true;
                 vox.Id = id;
                 SetVoxelWithData(pos, vox);
                 QueueTickVoxelArea(pos);
                 PlayBlockSoundAt(pos);
-                SendVoxel(pos, id);
             }
-            QueueUpdateChunks(FloorPosition(block), true);
+            QueueUpdateChunks(FloorPosition(Vector3Int.FloorToInt(block)), true);
+            return flag;
         }
+        return false;
     }
 }

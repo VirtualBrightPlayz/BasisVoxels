@@ -2,27 +2,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Mutex = System.Threading.Mutex;
 
 public class VoxelMesh
 {
-    private static List<Vector3> verts = new List<Vector3>();
-    private static List<Vector3> normals = new List<Vector3>();
-    private static Dictionary<int, List<int>> trisLookup = new Dictionary<int, List<int>>();
-    private static List<Vector2> uvs = new List<Vector2>();
-    private static List<Color32> colors = new List<Color32>();
-    public Chunk chunk;
+    private List<Vector3> verts = new List<Vector3>();
+    private List<Vector3> normals = new List<Vector3>();
+    private Dictionary<int, List<int>> trisLookup = new Dictionary<int, List<int>>();
+    private List<Vector2> uvs = new List<Vector2>();
+    private List<Color32> colors = new List<Color32>();
     public VoxelWorld world;
     private Mesh mesh;
     private Material[] materials = new Material[0];
-    public bool isUpdating { get; private set; } = false;
-    public bool IsValid = false;
-
-    private static bool[] visibleFaces = new bool[6];
-    private static Color32[] lightFaces = new Color32[6];
+    public bool hasArray { get; private set; } = false;
+    private Mesh.MeshDataArray array;
+    private Mutex mutex = new Mutex();
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ChunkVertex
@@ -34,23 +33,23 @@ public class VoxelMesh
         public Vector2 uv;
     }
 
-    private void AddChunk()
+    private void AddChunk(Chunk chunk)
     {
-        // bool[] visibleFaces = new bool[6];
-        // Color32[] lightFaces = new Color32[6];
+        bool[] visibleFaces = new bool[6];
+        Color32[] lightFaces = new Color32[6];
         for (int x = 0; x < Chunk.SIZE; x++)
         {
             for (int y = 0; y < Chunk.SIZE; y++)
             {
                 for (int z = 0; z < Chunk.SIZE; z++)
                 {
-                    AddVoxel(x, y, z, ref visibleFaces, ref lightFaces);
+                    AddVoxel(chunk, x, y, z, ref visibleFaces, ref lightFaces);
                 }
             }
         }
     }
 
-    private void AddVoxel(int x, int y, int z, ref bool[] visibleFaces, ref Color32[] lightFaces)
+    private void AddVoxel(Chunk chunk, int x, int y, int z, ref bool[] visibleFaces, ref Color32[] lightFaces)
     {
         if (chunk.TryGetVoxel(x, y, z, out Voxel vox) && vox.IsActive)
         {
@@ -183,124 +182,157 @@ public class VoxelMesh
 
     public Mesh GetMesh()
     {
-        return mesh;
-    }
-
-    private void ResetDataLists()
-    {
-        if (verts.Capacity < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE)
-            verts.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        if (normals.Capacity < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE)
-            normals.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        if (uvs.Capacity < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE)
-            uvs.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        if (colors.Capacity < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE)
-            colors.Capacity = Chunk.SIZE * Chunk.SIZE * Chunk.SIZE;
-        verts.Clear();
-        normals.Clear();
-        uvs.Clear();
-        colors.Clear();
-        // clear the lists, not the dictionary to prevent GC
-        foreach (var kvp in trisLookup)
-            kvp.Value.Clear();
-    }
-
-    public void UpdateMesh()
-    {
-        if (isUpdating || mesh == null || chunk == null)
-            return;
-        isUpdating = true;
-        ResetDataLists();
-        AddChunk();
-        Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
-        Mesh.MeshData data = array[0];
-        // await Task.Run(() =>
+        if (mesh.vertexCount != 0)
         {
-            NativeArray<VertexAttributeDescriptor> attributeDescriptors = new NativeArray<VertexAttributeDescriptor>(5, Allocator.Temp);
-            attributeDescriptors[0] = new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3);
-            attributeDescriptors[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3);
-            attributeDescriptors[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4);
-            attributeDescriptors[3] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4);
-            attributeDescriptors[4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2);
-            data.SetVertexBufferParams(verts.Count, attributeDescriptors);
-            attributeDescriptors.Dispose();
-            /*data.SetVertexBufferParams(verts.Count,
-                new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3),
-                new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3),
-                new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4),
-                new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4),
-                new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2)
-            );*/
-            int indCount = 0;
-            foreach (var id in trisLookup.Keys)
-                indCount += trisLookup[id].Count;
-            data.SetIndexBufferParams(indCount, IndexFormat.UInt32);
-            NativeArray<ChunkVertex> vertex = data.GetVertexData<ChunkVertex>();
-            for (int i = 0; i < verts.Count; i++)
+            return mesh;
+        }
+        return null;
+    }
+
+    public Material[] GetMaterials()
+    {
+        return materials;
+    }
+
+    public void AllocMesh()
+    {
+        if (hasArray)
+        {
+            // Debug.LogError("Array already exists");
+            return;
+        }
+        if (mutex.WaitOne())
+        {
+            try
             {
-                vertex[i] = new ChunkVertex()
-                {
-                    position = verts[i],
-                    normal = normals[i],
-                    uv = uvs[i],
-                    color = colors[i],
-                };
+                array = Mesh.AllocateWritableMeshData(1);
+                hasArray = true;
             }
-            NativeArray<uint> index = data.GetIndexData<uint>();
-            data.subMeshCount = trisLookup.Count;
-            int j = 0;
-            int k = 0;
-            foreach (var id in trisLookup.Keys)
+            finally
             {
-                for (int i = 0; i < trisLookup[id].Count; i++)
-                {
-                    index[j++] = (uint)trisLookup[id][i];
-                }
-                SubMeshDescriptor desc = new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count);
-                data.SetSubMesh(k++, desc);
+                mutex.ReleaseMutex();
             }
-        }//);
-        Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
+        }
+        /*Mesh.MeshData data = array[0];
+        NativeArray<VertexAttributeDescriptor> attributeDescriptors = new NativeArray<VertexAttributeDescriptor>(5, Allocator.Temp);
+        attributeDescriptors[0] = new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3);
+        attributeDescriptors[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3);
+        attributeDescriptors[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4);
+        attributeDescriptors[3] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4);
+        attributeDescriptors[4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2);
+        data.SetVertexBufferParams(verts.Count, attributeDescriptors);
+        attributeDescriptors.Dispose();*/
+    }
+
+    public void ApplyMesh()
+    {
+        if (!hasArray)
+        {
+            Debug.LogError("Array doesn't already exists");
+            return;
+        }
+        if (mutex.WaitOne())
+        {
+            try
+            {
+                Mesh.ApplyAndDisposeWritableMeshData(array, mesh);
+                hasArray = false;
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
+        }
         mesh.bounds = new Bounds(Vector3.one * Chunk.SIZE * 0.5f, Vector3.one * Chunk.SIZE);
-        int instId = mesh.GetInstanceID();
-        Physics.BakeMesh(instId, false, MeshColliderCookingOptions.None);
-        // Material[] tempList = new Material[trisLookup.Count];
-        Array.Resize(ref materials, trisLookup.Count);
-        // Material[] tempList = materials;
-        int i2 = 0;
-        foreach (var id in trisLookup.Keys)
-        {
-            if (id >= 0 && id < world.materials.Count)
-                materials[i2++] = world.materials[id];
-            else
-                i2++;
-        }
-        // materials = tempList;
-        isUpdating = false;
-        chunk.shouldUpdate = Mathf.Max(chunk.shouldUpdate - 1, 0);
-        IsValid = true;
     }
 
-    public void Draw()
+    public bool UpdateMesh(Chunk chunk)
     {
-        if (!IsValid)
-            return;
-        for (int i = 0; i < Mathf.Min(materials.Length, mesh.subMeshCount); i++)
+        // Debug.Log($"ChunkUpdateMesh: {chunk.chunkPosition}");
+        if (mutex.WaitOne())
         {
-            Matrix4x4 matrix = Matrix4x4.Translate(chunk.chunkPosition * Chunk.SIZE);
-            RenderParams render = new RenderParams(materials[i]);
-            render.shadowCastingMode = ShadowCastingMode.On;
-            render.receiveShadows = true;
-            Graphics.RenderMesh(render, mesh, i, matrix);
+            try
+            {
+                if (hasArray)
+                {
+                    verts.Clear();
+                    normals.Clear();
+                    trisLookup.Clear();
+                    uvs.Clear();
+                    colors.Clear();
+                    AddChunk(chunk);
+                    Mesh.MeshData data = array[0];
+                    {
+                        NativeArray<VertexAttributeDescriptor> attributeDescriptors = new NativeArray<VertexAttributeDescriptor>(5, Allocator.TempJob);
+                        attributeDescriptors[0] = new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3);
+                        attributeDescriptors[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3);
+                        attributeDescriptors[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4);
+                        attributeDescriptors[3] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4);
+                        attributeDescriptors[4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2);
+                        data.SetVertexBufferParams(verts.Count, attributeDescriptors);
+                        attributeDescriptors.Dispose();
+                        /*data.SetVertexBufferParams(verts.Count,
+                            new VertexAttributeDescriptor(VertexAttribute.Position, dimension: 3),
+                            new VertexAttributeDescriptor(VertexAttribute.Normal, dimension: 3),
+                            new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4),
+                            new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, dimension: 4),
+                            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2)
+                        );*/
+                        int indCount = 0;
+                        foreach (var id in trisLookup.Keys)
+                            indCount += trisLookup[id].Count;
+                        data.SetIndexBufferParams(indCount, IndexFormat.UInt32);
+                        NativeArray<ChunkVertex> vertex = data.GetVertexData<ChunkVertex>();
+                        for (int i = 0; i < verts.Count; i++)
+                        {
+                            vertex[i] = new ChunkVertex()
+                            {
+                                position = verts[i],
+                                normal = normals[i],
+                                uv = uvs[i],
+                                color = colors[i],
+                            };
+                        }
+                        NativeArray<uint> index = data.GetIndexData<uint>();
+                        data.subMeshCount = trisLookup.Count;
+                        int j = 0;
+                        int k = 0;
+                        foreach (var id in trisLookup.Keys)
+                        {
+                            for (int i = 0; i < trisLookup[id].Count; i++)
+                            {
+                                index[j++] = (uint)trisLookup[id][i];
+                            }
+                            SubMeshDescriptor desc = new SubMeshDescriptor(j - trisLookup[id].Count, trisLookup[id].Count);
+                            data.SetSubMesh(k++, desc);
+                        }
+                    }
+                    // EntityId instId = mesh.GetEntityId();
+                    // Physics.BakeMesh(instId, false, MeshColliderCookingOptions.None);
+                    Material[] tempList = new Material[trisLookup.Count];
+                    int i2 = 0;
+                    foreach (var id in trisLookup.Keys)
+                    {
+                        if (id >= 0 && id < world.materials.Count)
+                            tempList[i2++] = world.materials[id];
+                        else
+                            i2++;
+                    }
+                    materials = tempList;
+                    // chunk.shouldUpdate = Mathf.Max(chunk.shouldUpdate - 1, 0);
+                }
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
         }
+        return true;
     }
 
-    public VoxelMesh(VoxelWorld wo, Chunk ch)
+    public VoxelMesh(VoxelWorld wo)
     {
         mesh = new Mesh();
         world = wo;
-        chunk = ch;
-        isUpdating = false;
-        chunk.QueueUpdateMesh();
     }
 }

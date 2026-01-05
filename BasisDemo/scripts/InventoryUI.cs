@@ -11,7 +11,7 @@ public class InventoryUI : BasisUIBase
 
     public void Open()
     {
-        BasisUIManagement.Instance.AddUI(this);
+        BasisUIManagement.AddUI(this);
         InitalizeEvent();
     }
 

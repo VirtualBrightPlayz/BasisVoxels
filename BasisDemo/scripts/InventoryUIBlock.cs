@@ -19,6 +19,14 @@ public class InventoryUIBlock : MonoBehaviour
 
     public void Selected()
     {
-        world.placeBlockId = (byte)world.types.IndexOf(block);
+        switch (world.GameMode)
+        {
+            case CreativeMode creative:
+                creative.placeBlockId = (byte)world.types.IndexOf(block);
+                break;
+            // case LimitedMode limited:
+            //     limited.placeBlockId = (byte)world.types.IndexOf(block);
+            //     break;
+        }
     }
 }

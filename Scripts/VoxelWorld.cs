@@ -1,15 +1,14 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using UnityEngine;
 
-public abstract class VoxelWorld : MonoBehaviour
+public partial class VoxelWorld : MonoBehaviour
 {
     public List<Material> materials = new List<Material>();
-    public VoxelMesh prefab;
-    protected ConcurrentDictionary<Vector3Int, Chunk> chunks = new ConcurrentDictionary<Vector3Int, Chunk>();
+    protected HashSet<Vector3Int> chunkPositions = new HashSet<Vector3Int>();
+    protected Dictionary<Vector3Int, Chunk> chunks = new Dictionary<Vector3Int, Chunk>();
     public int seed = 1337;
     protected bool genRunning = false;
     protected Queue<Vector3Int> chunkUpdateQueue = new Queue<Vector3Int>();
@@ -22,16 +21,20 @@ public abstract class VoxelWorld : MonoBehaviour
     protected double lastTickTime;
     protected bool tickRunning = false;
 
+    public Action<double> OnTick = (_) => { };
+    public Action<Chunk> OnSpawnChunk = (_) => { };
+    public Action<Vector3Int, Chunk, Voxel> OnSetVoxel = (_, _, _) => { };
+
     public static Vector3Int RoundPosition(Vector3 pos)
     {
         Vector3 pos2 = pos - Vector3.one * Chunk.SIZE / 2f;
         return new Vector3Int(Mathf.RoundToInt(pos2.x / Chunk.SIZE), Mathf.RoundToInt(pos2.y / Chunk.SIZE), Mathf.RoundToInt(pos2.z / Chunk.SIZE));
     }
 
-    public static Vector3Int FloorPosition(Vector3 pos)
+    public static Vector3Int FloorPosition(Vector3Int pos)
     {
-        Vector3 pos2 = pos;
-        return new Vector3Int(Mathf.FloorToInt(pos2.x / Chunk.SIZE), Mathf.FloorToInt(pos2.y / Chunk.SIZE), Mathf.FloorToInt(pos2.z / Chunk.SIZE));
+        Vector3Int pos2 = pos;
+        return new Vector3Int(Mathf.FloorToInt((float)pos2.x / Chunk.SIZE), Mathf.FloorToInt((float)pos2.y / Chunk.SIZE), Mathf.FloorToInt((float)pos2.z / Chunk.SIZE));
     }
 
     public static Vector3Int UnroundPosition(Vector3Int pos)
@@ -126,8 +129,12 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public bool IsFaceVisible(Chunk chunk, int x, int y, int z, byte layer)
     {
-        Vector3Int position = UnroundPosition(chunk.chunkPosition);
-        return IsFaceVisible(position.x + x, position.y + y, position.z + z, layer);
+        if (!chunk.TryGetVoxel(x, y, z, out Voxel vox))
+        {
+            Vector3Int position = UnroundPosition(chunk.chunkPosition);
+            return IsFaceVisible(position.x + x, position.y + y, position.z + z, layer);
+        }
+        return !vox.IsActive || layer != vox.Layer;
     }
 
     public bool IsFaceVisible(int x, int y, int z, byte layer)
@@ -169,6 +176,7 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public virtual void TickWorld(double delta)
     {
+        OnTick?.Invoke(delta);
         Vector3Int[] queue = voxelsToTick.ToArray();
         voxelsToTick.Clear();
         for (int i = 0; i < queue.Length; i++)
@@ -257,7 +265,15 @@ public abstract class VoxelWorld : MonoBehaviour
         {
             Vector3Int voxelPos = GetVoxelPosition(pos) - UnroundPosition(chunkPos);
             mesh.SetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, SetVoxelData(voxel, pos));
+            OnSetVoxel?.Invoke(pos, mesh, voxel);
         }
+    }
+
+    // pos in world space
+    public void SetVoxelWithData(Chunk mesh, Vector3Int pos, Voxel voxel)
+    {
+        Vector3Int voxelPos = pos;
+        mesh.SetVoxel(voxelPos.x, voxelPos.y, voxelPos.z, SetVoxelData(voxel, UnroundPosition(mesh.chunkPosition) + pos));
     }
 
     public virtual Voxel SetVoxelData(Voxel vox, Vector3Int pos)
@@ -335,45 +351,166 @@ public abstract class VoxelWorld : MonoBehaviour
 
     public Chunk SpawnOrGetChunk(Vector3Int pos)
     {
-        if (chunks.TryGetValue(pos, out Chunk ch))
+        if (chunkPositions.Contains(pos) && chunks.TryGetValue(pos, out Chunk ch))
         {
             return ch;
         }
         else
         {
+            // VoxelMesh chunk = Instantiate(prefab, UnroundPosition(pos), Quaternion.identity, transform);
+            // chunk.world = this;
+            // chunk.gameObject.SetActive(true);
+            // chunk.Setup();
             Chunk chunk = new Chunk(pos);
-            return chunks.GetOrAdd(pos, chunk);
+            chunks.Add(pos, chunk);
+            chunkPositions.Add(pos);
+            OnSpawnChunk?.Invoke(chunk);
+            return chunk;
         }
     }
 
     public Chunk SpawnChunk(Vector3Int pos)
     {
-        if (!chunks.ContainsKey(pos))
+        if (!chunkPositions.Contains(pos))
         {
             Chunk chunk = new Chunk(pos);
-            if (!chunks.TryAdd(pos, chunk))
-                return null;
+            chunks.Add(pos, chunk);
+            chunkPositions.Add(pos);
+            OnSpawnChunk?.Invoke(chunk);
             return chunk;
         }
         return null;
     }
 
-    public abstract void GenerateVoxels(Chunk chunk);
+    public virtual void GenerateVoxels(Chunk chunk)
+    {
+    }
+
+    public virtual void Update()
+    {
+        UpdateTasks();
+        Tick();
+    }
+
+    #region File IO
+
+    public void SaveToFolder(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            Directory.CreateDirectory(path);
+        }
+        using FileStream levelFS = File.OpenWrite(Path.Combine(path, "level.dat"));
+        ulong count = SaveLevelFormat1(levelFS);
+        for (ulong i = 1; i <= count; i++)
+        {
+            using FileStream chunkFS = File.OpenWrite(Path.Combine(path, i + ".dat"));
+            using BinaryWriter chunkWriter = new BinaryWriter(chunkFS);
+            List<Chunk> foundChunks = new List<Chunk>();
+            foreach (var kvp in chunks)
+            {
+                if (kvp.Value.fileId == i)
+                {
+                    foundChunks.Add(kvp.Value);
+                }
+            }
+            chunkWriter.Write((int)foundChunks.Count);
+            for (int j = 0; j < foundChunks.Count; j++)
+            {
+                SaveChunkFormat1(chunkWriter, foundChunks[j]);
+            }
+        }
+    }
+
+    public ulong SaveLevelFormat1(Stream stream)
+    {
+        using BinaryWriter writer = new BinaryWriter(stream);
+        writer.Write((uint)1); // version
+        writer.Write((ulong)chunks.Count);
+        ulong i = 1;
+        int j = 0;
+        foreach (var kvp in chunks)
+        {
+            j++;
+            if (j > Chunk.SIZE)
+            {
+                i++;
+                j = 0;
+            }
+            writer.Write(kvp.Key.x);
+            writer.Write(kvp.Key.y);
+            writer.Write(kvp.Key.z);
+            writer.Write(i);
+            kvp.Value.fileId = i;
+        }
+        return i;
+    }
+
+    public void SaveChunkFormat1(BinaryWriter writer, Chunk chunk)
+    {
+        writer.Write(chunk.chunkPosition.x);
+        writer.Write(chunk.chunkPosition.y);
+        writer.Write(chunk.chunkPosition.z);
+        for (int i = 0; i < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE; i++)
+            writer.Write(chunk.voxels[i].Id);
+    }
+
+    public void LoadFromFolder(string path)
+    {
+        if (!Directory.Exists(path))
+            return;
+        using FileStream levelFS = File.OpenRead(Path.Combine(path, "level.dat"));
+        ulong[] files = LoadLevelFormat1(levelFS);
+        for (ulong i = 0; i < (ulong)files.LongLength; i++)
+        {
+            ulong fileId = files[i];
+            using FileStream chunkFS = File.OpenRead(Path.Combine(path, fileId + ".dat"));
+            using BinaryReader chunkReader = new BinaryReader(chunkFS);
+            int count = chunkReader.ReadInt32();
+            for (int j = 0; j < count; j++)
+            {
+                LoadChunkFormat1(chunkReader).QueueUpdateMesh();
+            }
+        }
+    }
+
+    public ulong[] LoadLevelFormat1(Stream stream)
+    {
+        HashSet<ulong> files = new HashSet<ulong>();
+        using BinaryReader reader = new BinaryReader(stream);
+        reader.ReadUInt32(); // version
+        ulong count = reader.ReadUInt64();
+        for (ulong i = 0; i < count; i++)
+        {
+            int x = reader.ReadInt32();
+            int y = reader.ReadInt32();
+            int z = reader.ReadInt32();
+            ulong fileId = reader.ReadUInt64();
+            files.Add(fileId);
+        }
+        return files.ToArray();
+    }
+
+    public Chunk LoadChunkFormat1(BinaryReader reader)
+    {
+        int x = reader.ReadInt32();
+        int y = reader.ReadInt32();
+        int z = reader.ReadInt32();
+        Chunk chunk = SpawnOrGetChunk(new Vector3Int(x, y, z));
+        for (int i = 0; i < Chunk.SIZE * Chunk.SIZE * Chunk.SIZE; i++)
+            chunk.voxels[i].Id = reader.ReadByte();
+        return chunk;
+    }
+
+    #endregion
 
     #region Lighting
 
-    private Queue<(Vector3Int, Color32)> lightmapQueue = new Queue<(Vector3Int, Color32)>();
-    private List<Vector3Int> lightmapList = new List<Vector3Int>();
-
     public void UpdateVoxelLightmap(Vector3Int voxPos, Color32 baseLight)
     {
-        // Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
-        var queue = lightmapQueue;
-        queue.Clear();
+        Queue<(Vector3Int, Color32)> queue = new Queue<(Vector3Int, Color32)>();
         queue.Enqueue((voxPos, baseLight));
-        // List<Vector3Int> list = new List<Vector3Int>();
-        var list = lightmapList;
-        list.Clear();
+        List<Vector3Int> list = new List<Vector3Int>();
         while (queue.Count != 0)
         {
             (Vector3Int pos, Color32 light) = queue.Dequeue();

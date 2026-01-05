@@ -1,0 +1,218 @@
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Device_Management.Devices.Desktop;
+using Basis.Scripts.TransformBinders.BoneControl;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class LimitedMode : MonoBehaviour, IGameMode
+{
+    public bool Enabled { get => enabled; set => enabled = value; }
+
+    public BasisDemoVoxels world;
+
+    public ItemData[] items;
+
+    [Header("Prefabs")]
+    public GameObject inventoryPrefab;
+    public Transform highlighter;
+    public Item worldItemPrefab;
+    private Transform[] highlighters;
+
+    [Header("Inputs")]
+    public InputAction inventoryAction;
+    public byte placeBlockId = 1;
+
+    private BasisInput centerEye;
+    private BasisInput leftHand;
+    private BasisInput rightHand;
+    private bool lastTriggerLeftMouse = false;
+    private bool lastTriggerRightMouse = false;
+    private bool lastInventoryButton = false;
+
+    private void OnEnable()
+    {
+        inventoryAction.Enable();
+        BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate += OnPostSimulate;
+        BasisDeviceManagement.Instance.AllInputDevices.OnListChanged += FindTrackerRoles;
+        FindTrackerRoles();
+    }
+
+    private void OnDisable()
+    {
+        inventoryAction.Disable();
+        BasisLocalPlayer.Instance.LocalBoneDriver.OnPostSimulate -= OnPostSimulate;
+        BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindTrackerRoles;
+        if (highlighters != null)
+        {
+            for (int i = 0; i < highlighters.Length; i++)
+            {
+                if (highlighters[i] != null)
+                {
+                    Destroy(highlighters[i].gameObject);
+                }
+            }
+        }
+    }
+
+    public BlockItem FindBlockItemForVoxel(Voxel voxel)
+    {
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i] is BlockItem blockItem)
+            {
+                if (world.types[voxel.Id] == blockItem.voxel)
+                    return blockItem;
+            }
+        }
+        return null;
+    }
+
+    public void ToggleInventoryUI()
+    {
+        if (InventoryUI.Instance != null)
+        {
+            InventoryUI.Instance.CloseThisMenu();
+        }
+        else
+        {
+            GameObject obj = Instantiate(inventoryPrefab);
+            if (obj.TryGetComponent(out InventoryUI inv))
+            {
+                inv.Open();
+                inv.FillBlocks(world);
+            }
+            else
+            {
+                Destroy(obj);
+            }
+        }
+    }
+
+    private void FindTrackerRoles()
+    {
+        centerEye = FindTrackerByRole(BasisBoneTrackedRole.CenterEye);
+        leftHand = FindTrackerByRole(BasisBoneTrackedRole.LeftHand);
+        rightHand = FindTrackerByRole(BasisBoneTrackedRole.RightHand);
+        if (highlighters != null)
+        {
+            for (int i = 0; i < highlighters.Length; i++)
+            {
+                if (highlighters[i] != null)
+                {
+                    Destroy(highlighters[i].gameObject);
+                }
+            }
+        }
+        highlighters = new Transform[3];
+        highlighters[0] = Instantiate(highlighter, transform);
+        highlighters[1] = Instantiate(highlighter, transform);
+        highlighters[2] = Instantiate(highlighter, transform);
+    }
+
+    private BasisInput FindTrackerByRole(BasisBoneTrackedRole TrackedRole)
+    {
+        int count = BasisDeviceManagement.Instance.AllInputDevices.Count;
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisInput Input = BasisDeviceManagement.Instance.AllInputDevices[Index];
+            if (Input != null)
+            {
+                if (Input.TryGetRole(out BasisBoneTrackedRole role))
+                {
+                    if (role == TrackedRole)
+                    {
+                        return Input;
+                    }
+                }
+                else
+                {
+                    Debug.LogError("Missing Role " + role);
+                }
+            }
+            else
+            {
+                Debug.LogError("There was a missing BasisInput at " + Index);
+            }
+        }
+        return null;
+    }
+
+    private void OnPostSimulate()
+    {
+        if (highlighters == null)
+            return;
+        if (BasisUIManagement.Instance.basisUIBases.Count != 0)
+            return;
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            if (BasisLocalInputActions.Instance != null && centerEye != null)
+            {
+                Ray dir = new Ray(centerEye.transform.position, centerEye.transform.forward);
+                world.PlaceHighlighter(dir, highlighters[0]);
+                bool leftMouse = BasisLocalInputActions.Instance.LeftMousePressed.action.ReadValue<float>() >= 0.5f;
+                bool rightMouse = BasisLocalInputActions.Instance.RightMousePressed.action.ReadValue<float>() >= 0.5f;
+                bool inventoryBtn = inventoryAction.ReadValue<float>() >= 0.5f;
+                if (leftMouse && !lastTriggerLeftMouse)
+                {
+                    if (world.TryDestroyBlock(dir, out var vox, out var voxPos))
+                    {
+                        BlockItem itemData = FindBlockItemForVoxel(vox);
+                        if (itemData != null)
+                        {
+                            Item item = Instantiate(worldItemPrefab, voxPos + Vector3.one * 0.5f, Quaternion.identity, transform);
+                            item.itemAmount = 1;
+                            item.itemData = itemData;
+                        }
+                    }
+                }
+                if (rightMouse && !lastTriggerRightMouse)
+                {
+                    world.TryPlaceBlock(dir, placeBlockId);
+                }
+                if (inventoryBtn && !lastInventoryButton)
+                {
+                    ToggleInventoryUI();
+                }
+                lastTriggerLeftMouse = leftMouse;
+                lastTriggerRightMouse = rightMouse;
+                lastInventoryButton = inventoryBtn;
+            }
+        }
+        else
+        {
+            if (centerEye != null)
+            {
+                Ray dir = new Ray(centerEye.transform.position, centerEye.transform.forward);
+                highlighters[0].gameObject.SetActive(false);
+                if (centerEye.InputState.Trigger >= 0.5f && centerEye.LastState.Trigger < 0.5f)
+                {
+                    world.TryDestroyBlock(dir, out _, out _);
+                }
+            }
+            if (leftHand != null)
+            {
+                Ray dir = new Ray(leftHand.transform.position, leftHand.transform.forward);
+                world.PlaceHighlighter(dir, highlighters[1]);
+                if (leftHand.InputState.Trigger >= 0.5f && leftHand.LastState.Trigger < 0.5f)
+                {
+                    world.TryDestroyBlock(dir, out _, out _);
+                }
+            }
+            if (rightHand != null)
+            {
+                Ray dir = new Ray(rightHand.transform.position, rightHand.transform.forward);
+                world.PlaceHighlighter(dir, highlighters[2]);
+                if (rightHand.InputState.Trigger >= 0.5f && rightHand.LastState.Trigger < 0.5f)
+                {
+                    world.TryPlaceBlock(dir, placeBlockId);
+                }
+                if (rightHand.InputState.SecondaryButtonGetState && !rightHand.LastState.SecondaryButtonGetState)
+                {
+                    ToggleInventoryUI();
+                }
+            }
+        }
+    }
+}
